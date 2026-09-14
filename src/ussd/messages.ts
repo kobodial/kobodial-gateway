@@ -26,6 +26,8 @@ export const SEND_SELF = "You cannot send money to your own number.";
 export const SEND_ASK_AMOUNT = (phone: string): string => `Send to ${phone}\nEnter amount to send`;
 export const SEND_INVALID_AMOUNT =
   "Invalid amount. Please dial again and enter a whole number greater than 0.";
+export const SEND_AMOUNT_TOO_LARGE =
+  "That amount is too large. Please dial again and enter a smaller amount.";
 export const SEND_ASK_PIN = (amount: string, phone: string): string =>
   `Send ${amount} to ${phone}\nEnter your PIN to confirm`;
 export const SEND_SUCCESS = (amount: string, phone: string, balance: bigint): string =>

@@ -188,3 +188,49 @@ describe("USSD: Send Money", () => {
     expect(await contract.getBalance(hashPhoneNumber(otherPhone))).toBe(300n); // B's wallet untouched
   });
 });
+
+describe("USSD: Send Money — amount bounds", () => {
+  const senderPhone = "+2348012345678";
+  const recipientPhone = "+2348099999999";
+  const pin = "1234";
+  const I128_MAX = "170141183460469231731687303715884105727";
+
+  let db: Db;
+  let contract: MockKoboDialClient;
+  let menu: UssdMenuHandler;
+
+  beforeEach(() => {
+    db = createDb(":memory:");
+    migrate(db, { migrationsFolder: "./src/db/migrations" });
+    contract = new MockKoboDialClient();
+    contract.seedWallet(hashPhoneNumber(senderPhone), hashPin(pin), 1000n, 0);
+    contract.seedWallet(hashPhoneNumber(recipientPhone), hashPin(pin), 0n, 0);
+    menu = new UssdMenuHandler(db, contract);
+  });
+
+  async function amountStep(amount: string) {
+    await menu.handle({ sessionId: `amt-${amount}`, phoneNumber: senderPhone, text: "1" });
+    await menu.handle({ sessionId: `amt-${amount}`, phoneNumber: senderPhone, text: `1*${recipientPhone}` });
+    return menu.handle({
+      sessionId: `amt-${amount}`,
+      phoneNumber: senderPhone,
+      text: `1*${recipientPhone}*${amount}`,
+    });
+  }
+
+  it("rejects an amount larger than the contract's i128 with a message about the amount", async () => {
+    const res = await amountStep(I128_MAX + "0"); // one digit past the ceiling
+    expect(res.endSession).toBe(true);
+    expect(res.text).toContain("too large");
+    // Specifically not the generic failure — the caller mistyped, this
+    // isn't an internal error.
+    expect(res.text).not.toContain("Something went wrong");
+  });
+
+  it("still accepts an amount exactly at the i128 ceiling", async () => {
+    const res = await amountStep(I128_MAX);
+    // Reaches the PIN prompt rather than being rejected at the bound.
+    expect(res.endSession).toBe(false);
+    expect(res.text).toContain("PIN");
+  });
+});

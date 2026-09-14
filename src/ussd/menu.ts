@@ -43,6 +43,14 @@ function latestInput(text: string): string {
 /** A whole-integer amount: no decimals, no leading zero, at least 1. */
 const AMOUNT_PATTERN = /^[1-9]\d*$/;
 
+/**
+ * The contract's balances are i128, and the Soroban SDK throws when
+ * handed a bigger value. Without this bound an absurd amount typed into
+ * a handset would surface as the generic "something went wrong" and be
+ * logged as if it were a bug, rather than as the input mistake it is.
+ */
+const I128_MAX = 170141183460469231731687303715884105727n;
+
 type TxKind = "register" | "fund" | "send" | "cash_out" | "change_pin";
 
 /**
@@ -188,6 +196,9 @@ export class UssdMenuHandler {
   ): { next?: UssdSessionState; message: string } {
     if (!AMOUNT_PATTERN.test(input)) {
       return { message: msg.SEND_INVALID_AMOUNT };
+    }
+    if (BigInt(input) > I128_MAX) {
+      return { message: msg.SEND_AMOUNT_TOO_LARGE };
     }
     const recipient = session.data.recipientPhoneNumber!;
     return {
