@@ -197,6 +197,21 @@ first time this was tested by hand.)
 Keep appending one `*`-joined segment per request, the way Africa's
 Talking does: `text=4`, then `text=4*1234`, then `text=4*1234*1234`.
 
+## Deploying
+
+The service ships a production Dockerfile and a compose file:
+
+```sh
+docker compose up -d --build     # reads CONTRACT_ID, RELAYER_SECRET_KEY, etc. from .env
+curl http://localhost:3000/health
+```
+
+Africa's Talking needs to reach the gateway over the public internet, so
+the simulator walkthrough below needs a public HTTPS URL — a container
+host, or a tunnel while developing. Full instructions, including what to
+set as a secret and how to isolate a callback that isn't arriving, are
+in [DEPLOYMENT.md](DEPLOYMENT.md).
+
 ## Testing against Africa's Talking's simulator
 
 This is the live demo for this repo. The simulator calls your gateway
