@@ -1,4 +1,5 @@
 import type { Db } from "../db/client.js";
+import type { Logger } from "../logger.js";
 import { wallets, transactions } from "../db/schema.js";
 import type { KoboDialClient } from "../contract/client.js";
 import { ContractError, ContractErrorCode } from "../contract/errors.js";
@@ -57,6 +58,7 @@ export class UssdMenuHandler {
   constructor(
     private readonly db: Db,
     private readonly contract: KoboDialClient,
+    private readonly logger?: Logger,
   ) {
     this.sessions = new UssdSessionStore(db);
   }
@@ -78,12 +80,20 @@ export class UssdMenuHandler {
       // second flag every step handler would otherwise have to set
       // consistently by hand.
       return { text: result.message, endSession: !result.next };
-    } catch {
+    } catch (err) {
       // Anything not already turned into a specific USSD message by a
-      // step handler below is a bug or an infrastructure failure, not
+      // step handler above is a bug or an infrastructure failure, not
       // something the caller did wrong. They see the generic message;
-      // the real cause belongs in server-side logs, never in the 140
-      // characters that reach a feature phone.
+      // the real cause is logged here, server-side, since this is the
+      // one place it's still available to log — once we return, it's
+      // gone. (Caught directly reproducing this: a malformed
+      // phoneNumber threw out of hashPhoneNumber() below, on a request
+      // that never even reached a step handler that uses it — see
+      // tests/menu.test.ts.)
+      this.logger?.error("ussd session handler threw unexpectedly", {
+        sessionId: req.sessionId,
+        error: err instanceof Error ? err.message : String(err),
+      });
       await this.sessions.clear(req.sessionId).catch(() => undefined);
       return { text: msg.GENERIC_ERROR, endSession: true };
     }
