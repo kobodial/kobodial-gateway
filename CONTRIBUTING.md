@@ -36,12 +36,12 @@ CI runs exactly these. `npm run format` fixes formatting in place.
 sees one. Hash at the point of receipt; pass the digest onward. Never
 assign a raw PIN to anything that persists — not a session field, not
 a database column, not a log line. `ChangePin` and `Register` compare
-two PINs across separate USSD requests by comparing their *digests*,
+two PINs across separate USSD requests by comparing their _digests_,
 and any new flow that needs the same must do it the same way.
 
 **Never log a request body.** Africa's Talking's `text` field
 accumulates every keystroke of a session, `*`-joined — by the time a
-caller reaches a PIN prompt, its last segment *is* their PIN. There is
+caller reaches a PIN prompt, its last segment _is_ their PIN. There is
 deliberately no helper in `src/logger.ts` for logging a body, and
 adding one would defeat the rule above no matter how careful every
 other layer is.
