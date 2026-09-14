@@ -23,6 +23,16 @@ export interface UssdRequest {
   text: string;
 }
 
+/**
+ * What the route layer hands to Africa's Talking's SDK middleware, which
+ * adds the "CON "/"END " prefix itself from endSession — see the file
+ * comment in src/ussd/messages.ts for why that split exists.
+ */
+export interface UssdResponse {
+  text: string;
+  endSession: boolean;
+}
+
 /** The newest single input in a USSD session's accumulated text. Empty string means "just dialled in." */
 function latestInput(text: string): string {
   const parts = text.split("*");
@@ -51,7 +61,7 @@ export class UssdMenuHandler {
     this.sessions = new UssdSessionStore(db);
   }
 
-  async handle(req: UssdRequest): Promise<string> {
+  async handle(req: UssdRequest): Promise<UssdResponse> {
     try {
       const session = await this.sessions.load(req.sessionId);
       const input = latestInput(req.text);
@@ -62,15 +72,20 @@ export class UssdMenuHandler {
       } else {
         await this.sessions.clear(req.sessionId);
       }
-      return result.message;
+      // A step produced a next state exactly when the flow should keep
+      // going — that presence/absence is the same fact Africa's Talking
+      // calls endSession, derived here rather than duplicated as a
+      // second flag every step handler would otherwise have to set
+      // consistently by hand.
+      return { text: result.message, endSession: !result.next };
     } catch {
       // Anything not already turned into a specific USSD message by a
       // step handler below is a bug or an infrastructure failure, not
       // something the caller did wrong. They see the generic message;
-      // the real cause belongs in server-side logs (see src/logger.ts),
-      // never in the 140 characters that reach a feature phone.
+      // the real cause belongs in server-side logs, never in the 140
+      // characters that reach a feature phone.
       await this.sessions.clear(req.sessionId).catch(() => undefined);
-      return msg.GENERIC_ERROR;
+      return { text: msg.GENERIC_ERROR, endSession: true };
     }
   }
 
@@ -212,7 +227,7 @@ export class UssdMenuHandler {
         // balance afterward is not a transaction failure, so this still
         // reports success rather than telling the user something went
         // wrong when their money did in fact move.
-        return { message: `END Sent ${amountStr} to ${recipientPhoneNumber}.` };
+        return { message: `Sent ${amountStr} to ${recipientPhoneNumber}.` };
       }
     } catch (e) {
       if (e instanceof ContractError) {
