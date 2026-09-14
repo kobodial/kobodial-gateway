@@ -1,0 +1,43 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  check:
+    name: lint, typecheck, test, build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      # npm ci, not npm install: the committed lockfile is what makes
+      # the pinned versions in package.json mean anything, and ci fails
+      # loudly if the two ever disagree rather than quietly resolving
+      # something else.
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Lint and format check
+        run: npm run lint
+
+      # The build script type-checks as a side effect, but running tsc
+      # explicitly means a type error is reported as a type error rather
+      # than as a failed build step.
+      - name: Typecheck
+        run: npx tsc --noEmit -p tsconfig.json
+
+      # Every test is offline: the contract is mocked and each test
+      # builds its own in-memory database, so CI needs no secrets, no
+      # funded relayer key and no testnet availability to pass.
+      - name: Test
+        run: npm test
+
+      - name: Build
+        run: npm run build
