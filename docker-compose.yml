@@ -1,0 +1,23 @@
+services:
+  gateway:
+    build: .
+    image: kobodial-gateway:local
+    ports:
+      - "${PORT:-3000}:3000"
+    environment:
+      RPC_URL: ${RPC_URL:-https://soroban-testnet.stellar.org}
+      CONTRACT_ID: ${CONTRACT_ID:?CONTRACT_ID is required}
+      NETWORK_PASSPHRASE: ${NETWORK_PASSPHRASE:-Test SDF Network ; September 2015}
+      RELAYER_SECRET_KEY: ${RELAYER_SECRET_KEY:?RELAYER_SECRET_KEY is required}
+      AFRICAS_TALKING_USERNAME: ${AFRICAS_TALKING_USERNAME:-sandbox}
+      AFRICAS_TALKING_API_KEY: ${AFRICAS_TALKING_API_KEY:?AFRICAS_TALKING_API_KEY is required}
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+      # Inside the container the database lives on the mounted volume,
+      # not alongside the code.
+      DATABASE_URL: file:/data/kobodial-gateway.sqlite
+    volumes:
+      - gateway-data:/data
+    restart: unless-stopped
+
+volumes:
+  gateway-data:
