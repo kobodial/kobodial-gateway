@@ -1,0 +1,45 @@
+{
+  "name": "kobodial-gateway",
+  "version": "0.1.0",
+  "description": "USSD gateway bridging Africa's Talking USSD sessions to the KoboDial Soroban smart contract",
+  "license": "MIT",
+  "type": "module",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "dev": "tsx watch src/server.ts",
+    "build": "tsc -p tsconfig.json",
+    "start": "node dist/server.js",
+    "test": "vitest run",
+    "lint": "eslint . && prettier --check .",
+    "format": "prettier --write .",
+    "db:generate": "drizzle-kit generate",
+    "db:migrate": "tsx src/db/migrate.ts"
+  },
+  "dependencies": {
+    "@stellar/stellar-sdk": "17.0.1",
+    "africastalking": "0.8.3",
+    "better-sqlite3": "13.0.3",
+    "dotenv": "17.4.2",
+    "drizzle-orm": "0.45.2",
+    "express": "5.2.1",
+    "zod": "4.6.5"
+  },
+  "devDependencies": {
+    "@types/better-sqlite3": "9.6.0",
+    "@types/express": "5.0.6",
+    "@types/node": "26.5.1",
+    "@types/supertest": "7.2.1",
+    "@typescript-eslint/eslint-plugin": "8.70.0",
+    "@typescript-eslint/parser": "8.70.0",
+    "drizzle-kit": "0.31.10",
+    "eslint": "10.10.0",
+    "eslint-config-prettier": "10.1.8",
+    "prettier": "3.9.6",
+    "supertest": "7.2.2",
+    "tsx": "4.23.13",
+    "typescript": "5.9.3",
+    "vitest": "5.0.0"
+  }
+}
