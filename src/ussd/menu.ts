@@ -64,15 +64,31 @@ export class UssdMenuHandler {
   }
 
   async handle(req: UssdRequest): Promise<UssdResponse> {
+    // Computed once, before anything else, for two reasons: every
+    // session operation below is scoped to it (a sessionId alone is an
+    // unauthenticated claim — see UssdSessionStore), and a phone number
+    // malformed enough to fail here should fail before any step handler
+    // runs rather than partway through one.
+    let callerHash: string;
     try {
-      const session = await this.sessions.load(req.sessionId);
+      callerHash = toHex(hashPhoneNumber(req.phoneNumber));
+    } catch (err) {
+      this.logger?.error("ussd request carried an unusable phone number", {
+        sessionId: req.sessionId,
+        error: err instanceof Error ? err.message : String(err),
+      });
+      return { text: msg.GENERIC_ERROR, endSession: true };
+    }
+
+    try {
+      const session = await this.sessions.load(req.sessionId, callerHash);
       const input = latestInput(req.text);
       const result = await this.dispatch(session, input, req);
 
       if (result.next) {
-        await this.sessions.save(req.sessionId, toHex(hashPhoneNumber(req.phoneNumber)), result.next);
+        await this.sessions.save(req.sessionId, callerHash, result.next);
       } else {
-        await this.sessions.clear(req.sessionId);
+        await this.sessions.clear(req.sessionId, callerHash);
       }
       // A step produced a next state exactly when the flow should keep
       // going — that presence/absence is the same fact Africa's Talking
@@ -86,15 +102,12 @@ export class UssdMenuHandler {
       // something the caller did wrong. They see the generic message;
       // the real cause is logged here, server-side, since this is the
       // one place it's still available to log — once we return, it's
-      // gone. (Caught directly reproducing this: a malformed
-      // phoneNumber threw out of hashPhoneNumber() below, on a request
-      // that never even reached a step handler that uses it — see
-      // tests/menu.test.ts.)
+      // gone.
       this.logger?.error("ussd session handler threw unexpectedly", {
         sessionId: req.sessionId,
         error: err instanceof Error ? err.message : String(err),
       });
-      await this.sessions.clear(req.sessionId).catch(() => undefined);
+      await this.sessions.clear(req.sessionId, callerHash).catch(() => undefined);
       return { text: msg.GENERIC_ERROR, endSession: true };
     }
   }

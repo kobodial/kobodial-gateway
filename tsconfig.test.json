@@ -1,0 +1,15 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "noEmit": true,
+    // Nothing is emitted from this config — it exists only to type-check
+    // the files the build config deliberately excludes, so rootDir is
+    // widened to the repo rather than constraining output never written.
+    "rootDir": "."
+  },
+  // The base config excludes tests (they must not land in dist/), and an
+  // inherited exclude wins over include — so it has to be overridden
+  // here, or this config silently checks nothing at all.
+  "exclude": ["node_modules", "dist"],
+  "include": ["src", "tests", "vitest.config.ts", "drizzle.config.ts"]
+}

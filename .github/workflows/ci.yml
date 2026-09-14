@@ -27,11 +27,13 @@ jobs:
       - name: Lint and format check
         run: npm run lint
 
-      # The build script type-checks as a side effect, but running tsc
-      # explicitly means a type error is reported as a type error rather
-      # than as a failed build step.
+      # The build script type-checks src as a side effect, but this runs
+      # tsc explicitly so a type error is reported as a type error, and
+      # covers tests/ too — which the build config excludes, and which
+      # therefore went unchecked until a changed function signature
+      # reached the suite as a runtime failure instead of a compile one.
       - name: Typecheck
-        run: npx tsc --noEmit -p tsconfig.json
+        run: npm run typecheck
 
       # Every test is offline: the contract is mocked and each test
       # builds its own in-memory database, so CI needs no secrets, no
