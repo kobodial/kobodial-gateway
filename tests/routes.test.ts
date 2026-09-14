@@ -40,12 +40,17 @@ describe("dashboard routes", () => {
   });
 
   it("GET /transactions returns logged rows, newest first, with no raw PII columns", async () => {
-    await db
-      .insert(transactions)
-      .values([
-        { kind: "register", fromPhoneHash: "aaa", status: "success", txHash: "tx1" },
-        { kind: "send", fromPhoneHash: "aaa", toPhoneHash: "bbb", amount: "100", status: "success", txHash: "tx2" },
-      ]);
+    await db.insert(transactions).values([
+      { kind: "register", fromPhoneHash: "aaa", status: "success", txHash: "tx1" },
+      {
+        kind: "send",
+        fromPhoneHash: "aaa",
+        toPhoneHash: "bbb",
+        amount: "100",
+        status: "success",
+        txHash: "tx2",
+      },
+    ]);
     const res = await request(app).get("/transactions");
     expect(res.status).toBe(200);
     expect(res.body.transactions).toHaveLength(2);

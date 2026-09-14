@@ -52,9 +52,7 @@ describe("hashPin", () => {
   });
 
   it("matches the digest the deployed KoboDial contract already holds for this PIN", () => {
-    expect(toHex(hashPin("1234"))).toBe(
-      "03ac674216f3e15c761ee1a5e255f067953623c8b388b4459e13f978d7c846f4",
-    );
+    expect(toHex(hashPin("1234"))).toBe("03ac674216f3e15c761ee1a5e255f067953623c8b388b4459e13f978d7c846f4");
   });
 
   it("is sensitive to every digit — no two distinct PINs collide by construction", () => {

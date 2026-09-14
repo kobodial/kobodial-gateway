@@ -11,9 +11,7 @@ import { z } from "zod";
  */
 const envSchema = z.object({
   RPC_URL: z.string().url(),
-  CONTRACT_ID: z
-    .string()
-    .regex(/^C[A-Z2-7]{55}$/, "CONTRACT_ID must be a valid contract strkey (C...)"),
+  CONTRACT_ID: z.string().regex(/^C[A-Z2-7]{55}$/, "CONTRACT_ID must be a valid contract strkey (C...)"),
   NETWORK_PASSPHRASE: z.string().min(1),
   RELAYER_SECRET_KEY: z
     .string()

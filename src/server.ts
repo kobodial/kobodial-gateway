@@ -25,7 +25,10 @@ function main(): void {
     networkPassphrase: env.NETWORK_PASSPHRASE,
     relayerSecretKey: env.RELAYER_SECRET_KEY,
   });
-  logger.info("contract client ready", { relayerAddress: contract.relayerAddress, contractId: env.CONTRACT_ID });
+  logger.info("contract client ready", {
+    relayerAddress: contract.relayerAddress,
+    contractId: env.CONTRACT_ID,
+  });
 
   const menu = new UssdMenuHandler(db, contract, logger);
   const app = createApp({

@@ -27,6 +27,7 @@
     "zod": "4.6.5"
   },
   "devDependencies": {
+    "@eslint/js": "10.0.1",
     "@types/africastalking": "0.8.0",
     "@types/better-sqlite3": "9.6.0",
     "@types/express": "5.0.6",

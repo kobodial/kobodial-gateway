@@ -408,7 +408,10 @@ export class UssdMenuHandler {
 
     try {
       const txHash = await this.contract.register(callerHash, pinHash);
-      await this.db.insert(wallets).values({ phoneHash: toHex(callerHash) }).onConflictDoNothing();
+      await this.db
+        .insert(wallets)
+        .values({ phoneHash: toHex(callerHash) })
+        .onConflictDoNothing();
       await this.logTransaction({
         kind: "register",
         fromPhoneHash: toHex(callerHash),

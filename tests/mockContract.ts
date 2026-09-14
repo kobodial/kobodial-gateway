@@ -45,11 +45,18 @@ export class MockKoboDialClient implements KoboDialClient {
     return this.nextTxHash();
   }
 
-  async send(fromHash: Buffer, toHash: Buffer, amount: bigint, pinHash: Buffer, nonce: number): Promise<string> {
+  async send(
+    fromHash: Buffer,
+    toHash: Buffer,
+    amount: bigint,
+    pinHash: Buffer,
+    nonce: number,
+  ): Promise<string> {
     const from = fromHash.toString("hex");
     const to = toHash.toString("hex");
     if (!this.registered.has(from)) throw new ContractError(ContractErrorCode.WalletNotFound);
-    if (this.pins.get(from) !== pinHash.toString("hex")) throw new ContractError(ContractErrorCode.InvalidPin);
+    if (this.pins.get(from) !== pinHash.toString("hex"))
+      throw new ContractError(ContractErrorCode.InvalidPin);
     if (this.nonces.get(from) !== nonce) throw new ContractError(ContractErrorCode.InvalidNonce);
     const balance = this.balances.get(from) ?? 0n;
     if (balance < amount) throw new ContractError(ContractErrorCode.InsufficientBalance);
@@ -63,7 +70,8 @@ export class MockKoboDialClient implements KoboDialClient {
   async changePin(phoneHash: Buffer, oldPinHash: Buffer, newPinHash: Buffer): Promise<string> {
     const key = phoneHash.toString("hex");
     if (!this.registered.has(key)) throw new ContractError(ContractErrorCode.WalletNotFound);
-    if (this.pins.get(key) !== oldPinHash.toString("hex")) throw new ContractError(ContractErrorCode.InvalidPin);
+    if (this.pins.get(key) !== oldPinHash.toString("hex"))
+      throw new ContractError(ContractErrorCode.InvalidPin);
     this.pins.set(key, newPinHash.toString("hex"));
     return this.nextTxHash();
   }
