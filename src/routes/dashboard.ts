@@ -1,11 +1,11 @@
-import { Router } from "express";
+import { Router, json } from "express";
 import { desc, count, eq, and } from "drizzle-orm";
 import { z } from "zod";
 import type { Db } from "../db/client.js";
-import { wallets, transactions } from "../db/schema.js";
+import { wallets, transactions, agents } from "../db/schema.js";
 import type { KoboDialClient } from "../contract/client.js";
 import { ContractError, ContractErrorCode } from "../contract/errors.js";
-import { fromHex } from "../crypto/hash.js";
+import { fromHex, toHex, hashPhoneNumber, InvalidPhoneNumberError } from "../crypto/hash.js";
 
 /**
  * A small internal read-only API for the dashboard. Every row returned
@@ -49,8 +49,28 @@ const transactionQuerySchema = paginationSchema.extend({
  */
 const phoneHashSchema = z.string().regex(/^[0-9a-f]{64}$/);
 
+/**
+ * A new agent as the registration form submits it. The phone number is
+ * validated and hashed on the way in — the raw value is never stored, in
+ * keeping with every other phone number this service handles.
+ */
+const newAgentSchema = z.object({
+  name: z.string().trim().min(1, "name is required").max(120),
+  phone: z.string().trim().min(1, "phone is required"),
+  location: z.string().trim().min(1, "location is required").max(200),
+});
+
+/** The only field an agent update may change. Enrolment details are fixed once set. */
+const agentUpdateSchema = z.object({
+  status: z.enum(agents.status.enumValues),
+});
+
 export function createDashboardRouter(db: Db, contract: KoboDialClient): Router {
   const router = Router();
+  // The write endpoints (POST/PATCH /agents) take JSON bodies. Scoped to
+  // this router rather than the whole app, matching how the USSD router
+  // parses its own form bodies.
+  router.use(json());
 
   router.get("/health", async (_req, res) => {
     try {
@@ -149,6 +169,74 @@ export function createDashboardRouter(db: Db, contract: KoboDialClient): Router 
         detail: err instanceof Error ? err.message : String(err),
       });
     }
+  });
+
+  router.get("/agents", async (req, res) => {
+    const parsed = paginationSchema.safeParse(req.query);
+    if (!parsed.success) {
+      res.status(400).json({ error: parsed.error.issues });
+      return;
+    }
+    const { limit, offset } = parsed.data;
+    const rows = await db.select().from(agents).orderBy(desc(agents.id)).limit(limit).offset(offset);
+    const total = (await db.select({ total: count() }).from(agents))[0]?.total ?? 0;
+    res.json({ agents: rows, total, limit, offset });
+  });
+
+  router.post("/agents", async (req, res) => {
+    const parsed = newAgentSchema.safeParse(req.body);
+    if (!parsed.success) {
+      res.status(400).json({ error: parsed.error.issues });
+      return;
+    }
+    const { name, phone, location } = parsed.data;
+
+    let phoneHash: string;
+    try {
+      phoneHash = toHex(hashPhoneNumber(phone));
+    } catch (err) {
+      // A bad phone number is the caller's mistake, not a server fault.
+      if (err instanceof InvalidPhoneNumberError) {
+        res.status(400).json({ error: err.message });
+        return;
+      }
+      throw err;
+    }
+
+    // An agent enrols once. A second registration of the same number is a
+    // conflict, not a silent overwrite that would discard the first row's
+    // status and history.
+    const existing = await db.select().from(agents).where(eq(agents.phoneHash, phoneHash)).limit(1);
+    if (existing.length > 0) {
+      res.status(409).json({ error: "an agent with this phone number is already registered" });
+      return;
+    }
+
+    const inserted = await db.insert(agents).values({ name, phoneHash, location }).returning();
+    res.status(201).json({ agent: inserted[0] });
+  });
+
+  router.patch("/agents/:id", async (req, res) => {
+    const id = Number(req.params.id);
+    if (!Number.isInteger(id) || id < 1) {
+      res.status(400).json({ error: "id must be a positive integer" });
+      return;
+    }
+    const parsed = agentUpdateSchema.safeParse(req.body);
+    if (!parsed.success) {
+      res.status(400).json({ error: parsed.error.issues });
+      return;
+    }
+    const updated = await db
+      .update(agents)
+      .set({ status: parsed.data.status })
+      .where(eq(agents.id, id))
+      .returning();
+    if (updated.length === 0) {
+      res.status(404).json({ error: "no agent with that id" });
+      return;
+    }
+    res.json({ agent: updated[0] });
   });
 
   return router;
