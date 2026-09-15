@@ -214,6 +214,11 @@ export class SorobanKoboDialClient implements KoboDialClient {
     nonce: number,
   ): Promise<string> {
     return this.submitWrite("send", [
+      // The contract now requires the admin on this path too. It always
+      // signed the submission; it just wasn't naming itself as the
+      // authorizer, which is what left send authorized by a value
+      // readable from public chain state.
+      this.adminArg(),
       bytes32(fromHash),
       bytes32(toHash),
       nativeToScVal(amount, { type: "i128" }),
@@ -223,7 +228,12 @@ export class SorobanKoboDialClient implements KoboDialClient {
   }
 
   async changePin(phoneHash: Buffer, oldPinHash: Buffer, newPinHash: Buffer): Promise<string> {
-    return this.submitWrite("change_pin", [bytes32(phoneHash), bytes32(oldPinHash), bytes32(newPinHash)]);
+    return this.submitWrite("change_pin", [
+      this.adminArg(),
+      bytes32(phoneHash),
+      bytes32(oldPinHash),
+      bytes32(newPinHash),
+    ]);
   }
 
   async cashOut(phoneHash: Buffer, amount: bigint, pinHash: Buffer, nonce: number): Promise<string> {
