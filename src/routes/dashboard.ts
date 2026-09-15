@@ -3,6 +3,9 @@ import { desc, count, eq, and } from "drizzle-orm";
 import { z } from "zod";
 import type { Db } from "../db/client.js";
 import { wallets, transactions } from "../db/schema.js";
+import type { KoboDialClient } from "../contract/client.js";
+import { ContractError, ContractErrorCode } from "../contract/errors.js";
+import { fromHex } from "../crypto/hash.js";
 
 /**
  * A small internal read-only API for the dashboard. Every row returned
@@ -38,7 +41,15 @@ const transactionQuerySchema = paginationSchema.extend({
   status: z.enum(transactions.status.enumValues).optional(),
 });
 
-export function createDashboardRouter(db: Db): Router {
+/**
+ * A phone hash as it appears in these tables: the lowercase hex of a
+ * SHA-256 digest, so exactly 64 hex characters. Validated before any
+ * RPC call, so a malformed path parameter costs a 400 rather than a
+ * round trip to the chain.
+ */
+const phoneHashSchema = z.string().regex(/^[0-9a-f]{64}$/);
+
+export function createDashboardRouter(db: Db, contract: KoboDialClient): Router {
   const router = Router();
 
   router.get("/health", async (_req, res) => {
@@ -103,6 +114,41 @@ export function createDashboardRouter(db: Db): Router {
     // sensible reading of a missing count anyway.
     const total = (await db.select({ total: count() }).from(transactions).where(where))[0]?.total ?? 0;
     res.json({ transactions: rows, total, limit, offset, kind, status });
+  });
+
+  /**
+   * The one endpoint here that leaves the database. Balances live on
+   * chain and are deliberately not cached locally — see the wallets
+   * table comment in src/db/schema.ts — so this reads through to the
+   * contract on every call.
+   */
+  router.get("/wallets/:phoneHash/balance", async (req, res) => {
+    const parsed = phoneHashSchema.safeParse(req.params.phoneHash);
+    if (!parsed.success) {
+      res.status(400).json({ error: "phoneHash must be 64 lowercase hex characters" });
+      return;
+    }
+    const phoneHash = parsed.data;
+
+    try {
+      const balance = await contract.getBalance(fromHex(phoneHash));
+      // A decimal string, not a number: balances are i128 on chain and
+      // can exceed Number.MAX_SAFE_INTEGER. The transactions table
+      // stores amounts as text for the same reason.
+      res.json({ phoneHash, balance: balance.toString() });
+    } catch (err) {
+      // "No such wallet" and "the chain did not answer" must not collapse
+      // into one status. The first is a fact about the wallet; the second
+      // says nothing about it and the caller should retry.
+      if (err instanceof ContractError && err.code === ContractErrorCode.WalletNotFound) {
+        res.status(404).json({ error: "WalletNotFound", phoneHash });
+        return;
+      }
+      res.status(502).json({
+        error: "could not read the balance from the contract",
+        detail: err instanceof Error ? err.message : String(err),
+      });
+    }
   });
 
   return router;

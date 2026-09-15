@@ -34,6 +34,7 @@ function main(): void {
   const app = createApp({
     db,
     menu,
+    contract,
     logger,
     africasTalkingUsername: env.AFRICAS_TALKING_USERNAME,
     africasTalkingApiKey: env.AFRICAS_TALKING_API_KEY,

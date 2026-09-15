@@ -12,14 +12,17 @@ import { MockKoboDialClient } from "./mockContract.js";
 describe("dashboard routes", () => {
   let db: Db;
   let app: Express;
+  let contract: MockKoboDialClient;
 
   beforeEach(() => {
     db = createDb(":memory:");
     migrate(db, { migrationsFolder: "./src/db/migrations" });
-    const menu = new UssdMenuHandler(db, new MockKoboDialClient());
+    contract = new MockKoboDialClient();
+    const menu = new UssdMenuHandler(db, contract);
     app = createApp({
       db,
       menu,
+      contract,
       logger: createLogger("error"),
       africasTalkingUsername: "sandbox",
       africasTalkingApiKey: "x",
@@ -91,14 +94,17 @@ describe("dashboard routes", () => {
 describe("USSD route (HTTP layer)", () => {
   let app: Express;
   let db: Db;
+  let contract: MockKoboDialClient;
 
   beforeEach(() => {
     db = createDb(":memory:");
     migrate(db, { migrationsFolder: "./src/db/migrations" });
-    const menu = new UssdMenuHandler(db, new MockKoboDialClient());
+    contract = new MockKoboDialClient();
+    const menu = new UssdMenuHandler(db, contract);
     app = createApp({
       db,
       menu,
+      contract,
       logger: createLogger("error"),
       africasTalkingUsername: "sandbox",
       africasTalkingApiKey: "x",
@@ -140,14 +146,17 @@ describe("USSD route (HTTP layer)", () => {
 describe("dashboard list pagination", () => {
   let db: Db;
   let app: Express;
+  let contract: MockKoboDialClient;
 
   beforeEach(() => {
     db = createDb(":memory:");
     migrate(db, { migrationsFolder: "./src/db/migrations" });
-    const menu = new UssdMenuHandler(db, new MockKoboDialClient());
+    contract = new MockKoboDialClient();
+    const menu = new UssdMenuHandler(db, contract);
     app = createApp({
       db,
       menu,
+      contract,
       logger: createLogger("error"),
       africasTalkingUsername: "sandbox",
       africasTalkingApiKey: "x",
@@ -213,14 +222,17 @@ describe("dashboard list pagination", () => {
 describe("transaction filtering", () => {
   let db: Db;
   let app: Express;
+  let contract: MockKoboDialClient;
 
   beforeEach(async () => {
     db = createDb(":memory:");
     migrate(db, { migrationsFolder: "./src/db/migrations" });
-    const menu = new UssdMenuHandler(db, new MockKoboDialClient());
+    contract = new MockKoboDialClient();
+    const menu = new UssdMenuHandler(db, contract);
     app = createApp({
       db,
       menu,
+      contract,
       logger: createLogger("error"),
       africasTalkingUsername: "sandbox",
       africasTalkingApiKey: "x",
@@ -298,5 +310,91 @@ describe("transaction filtering", () => {
     const res = await request(app).get("/transactions?kind=send&limit=1");
     expect(res.body.transactions).toHaveLength(1);
     expect(res.body.total).toBe(2);
+  });
+});
+
+describe("GET /wallets/:phoneHash/balance", () => {
+  let db: Db;
+  let app: Express;
+  let contract: MockKoboDialClient;
+
+  /** 64 hex characters, the shape hashPhoneNumber actually produces. */
+  const hash = "a".repeat(64);
+
+  beforeEach(() => {
+    db = createDb(":memory:");
+    migrate(db, { migrationsFolder: "./src/db/migrations" });
+    contract = new MockKoboDialClient();
+    const menu = new UssdMenuHandler(db, contract);
+    app = createApp({
+      db,
+      menu,
+      contract,
+      logger: createLogger("error"),
+      africasTalkingUsername: "sandbox",
+      africasTalkingApiKey: "x",
+    });
+  });
+
+  it("returns the balance the contract reports", async () => {
+    contract.seedWallet(Buffer.from(hash, "hex"), Buffer.alloc(32), 1250n);
+    const res = await request(app).get(`/wallets/${hash}/balance`);
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual({ phoneHash: hash, balance: "1250" });
+  });
+
+  it("returns the balance as a string, so i128 values survive the wire", async () => {
+    // Larger than Number.MAX_SAFE_INTEGER: as a JSON number this would
+    // come back altered, and the alteration is silent.
+    const huge = 170141183460469231731687303715884105727n;
+    contract.seedWallet(Buffer.from(hash, "hex"), Buffer.alloc(32), huge);
+    const res = await request(app).get(`/wallets/${hash}/balance`);
+    expect(res.body.balance).toBe(huge.toString());
+    expect(typeof res.body.balance).toBe("string");
+  });
+
+  it('returns zero as "0" rather than omitting it', async () => {
+    contract.seedWallet(Buffer.from(hash, "hex"), Buffer.alloc(32), 0n);
+    const res = await request(app).get(`/wallets/${hash}/balance`);
+    expect(res.body.balance).toBe("0");
+  });
+
+  it("404s a wallet the contract does not know", async () => {
+    const res = await request(app).get(`/wallets/${"b".repeat(64)}/balance`);
+    expect(res.status).toBe(404);
+    expect(res.body.error).toBe("WalletNotFound");
+  });
+
+  it("502s when the chain cannot be reached, rather than reporting absence", async () => {
+    // The distinction this pins: an unreachable RPC says nothing about
+    // whether the wallet exists. Collapsing it into the 404 would tell an
+    // operator the wallet is gone during an outage.
+    contract.getBalance = async () => {
+      throw new Error("rpc timeout");
+    };
+    const res = await request(app).get(`/wallets/${hash}/balance`);
+    expect(res.status).toBe(502);
+    expect(res.body.detail).toContain("rpc timeout");
+  });
+
+  it("rejects a malformed hash before calling the contract at all", async () => {
+    let called = false;
+    contract.getBalance = async () => {
+      called = true;
+      return 0n;
+    };
+    const res = await request(app).get("/wallets/not-a-hash/balance");
+    expect(res.status).toBe(400);
+    expect(called).toBe(false);
+  });
+
+  it("rejects uppercase hex, since stored hashes are lowercase", async () => {
+    const res = await request(app).get(`/wallets/${"A".repeat(64)}/balance`);
+    expect(res.status).toBe(400);
+  });
+
+  it("rejects a hash of the wrong length", async () => {
+    const res = await request(app).get(`/wallets/${"a".repeat(63)}/balance`);
+    expect(res.status).toBe(400);
   });
 });
