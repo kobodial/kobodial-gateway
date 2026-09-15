@@ -209,3 +209,94 @@ describe("dashboard list pagination", () => {
     expect(res.body.total).toBe(7);
   });
 });
+
+describe("transaction filtering", () => {
+  let db: Db;
+  let app: Express;
+
+  beforeEach(async () => {
+    db = createDb(":memory:");
+    migrate(db, { migrationsFolder: "./src/db/migrations" });
+    const menu = new UssdMenuHandler(db, new MockKoboDialClient());
+    app = createApp({
+      db,
+      menu,
+      logger: createLogger("error"),
+      africasTalkingUsername: "sandbox",
+      africasTalkingApiKey: "x",
+    });
+    await db.insert(transactions).values([
+      { kind: "register", fromPhoneHash: "aaa", status: "success" },
+      { kind: "fund", toPhoneHash: "aaa", amount: "500", status: "success" },
+      { kind: "send", fromPhoneHash: "aaa", toPhoneHash: "bbb", amount: "100", status: "success" },
+      {
+        kind: "send",
+        fromPhoneHash: "aaa",
+        toPhoneHash: "bbb",
+        amount: "999",
+        status: "failed",
+        errorCode: "InvalidPin",
+      },
+      { kind: "cash_out", fromPhoneHash: "bbb", amount: "50", status: "success" },
+    ]);
+  });
+
+  it("returns only the requested kind", async () => {
+    const res = await request(app).get("/transactions?kind=send");
+    expect(res.status).toBe(200);
+    expect(res.body.transactions).toHaveLength(2);
+    expect(res.body.transactions.every((t: { kind: string }) => t.kind === "send")).toBe(true);
+  });
+
+  it("returns only the requested status", async () => {
+    const res = await request(app).get("/transactions?status=failed");
+    expect(res.body.transactions).toHaveLength(1);
+    expect(res.body.transactions[0].errorCode).toBe("InvalidPin");
+  });
+
+  it("applies kind and status together rather than either one", async () => {
+    const res = await request(app).get("/transactions?kind=send&status=success");
+    expect(res.body.transactions).toHaveLength(1);
+    expect(res.body.transactions[0].amount).toBe("100");
+  });
+
+  it("counts the filtered set, not the whole table", async () => {
+    // The failure this guards: a total of 5 next to 2 visible rows reads
+    // as though the view is hiding three results.
+    const res = await request(app).get("/transactions?kind=send");
+    expect(res.body.total).toBe(2);
+  });
+
+  it("rejects an unknown kind instead of returning an empty list", async () => {
+    // An empty result must mean "nothing matched", never "you spelled it
+    // wrong" — otherwise a typo reads as a factual answer about the data.
+    const res = await request(app).get("/transactions?kind=withdrawal");
+    expect(res.status).toBe(400);
+  });
+
+  it("rejects an unknown status for the same reason", async () => {
+    const res = await request(app).get("/transactions?status=pending");
+    expect(res.status).toBe(400);
+  });
+
+  it("returns everything when no filter is given", async () => {
+    const res = await request(app).get("/transactions");
+    expect(res.body.transactions).toHaveLength(5);
+    expect(res.body.total).toBe(5);
+  });
+
+  it("accepts every kind the schema declares", async () => {
+    // Pins the filter to the table definition: a kind added to schema.ts
+    // without being filterable would fail here.
+    for (const kind of ["register", "fund", "send", "cash_out", "change_pin"]) {
+      const res = await request(app).get(`/transactions?kind=${kind}`);
+      expect(res.status, `kind=${kind} should be accepted`).toBe(200);
+    }
+  });
+
+  it("composes filtering with paging", async () => {
+    const res = await request(app).get("/transactions?kind=send&limit=1");
+    expect(res.body.transactions).toHaveLength(1);
+    expect(res.body.total).toBe(2);
+  });
+});
