@@ -136,3 +136,76 @@ describe("USSD route (HTTP layer)", () => {
     expect(res.text.startsWith("END ")).toBe(true);
   });
 });
+
+describe("dashboard list pagination", () => {
+  let db: Db;
+  let app: Express;
+
+  beforeEach(() => {
+    db = createDb(":memory:");
+    migrate(db, { migrationsFolder: "./src/db/migrations" });
+    const menu = new UssdMenuHandler(db, new MockKoboDialClient());
+    app = createApp({
+      db,
+      menu,
+      logger: createLogger("error"),
+      africasTalkingUsername: "sandbox",
+      africasTalkingApiKey: "x",
+    });
+  });
+
+  it("reports a total that counts every row, not just the page returned", async () => {
+    await db.insert(wallets).values(Array.from({ length: 12 }, (_, i) => ({ phoneHash: `hash${i}` })));
+    const res = await request(app).get("/wallets?limit=5");
+    expect(res.status).toBe(200);
+    expect(res.body.wallets).toHaveLength(5);
+    expect(res.body.total).toBe(12);
+  });
+
+  it("rejects a limit above the cap instead of silently clamping it", async () => {
+    // Clamping would hand back 200 rows to a client that asked for 1000
+    // and believed it had everything. A 400 cannot be misread.
+    const res = await request(app).get("/wallets?limit=1000");
+    expect(res.status).toBe(400);
+  });
+
+  it("echoes the defaults when the client sends no pagination at all", async () => {
+    // This is the case the echo exists for: nothing was asked for, so
+    // without it the client cannot tell which window it is holding.
+    const res = await request(app).get("/wallets");
+    expect(res.status).toBe(200);
+    expect(res.body.limit).toBe(50);
+    expect(res.body.offset).toBe(0);
+  });
+
+  it("echoes the offset so a client can tell which page it is holding", async () => {
+    await db.insert(wallets).values(Array.from({ length: 6 }, (_, i) => ({ phoneHash: `w${i}` })));
+    const res = await request(app).get("/wallets?limit=2&offset=4");
+    expect(res.body.offset).toBe(4);
+    expect(res.body.total).toBe(6);
+    expect(res.body.wallets).toHaveLength(2);
+  });
+
+  it("reports total 0 on an empty table rather than omitting the field", async () => {
+    // An absent total and a total of zero mean different things to a
+    // client; the field must always be present.
+    const res = await request(app).get("/transactions");
+    expect(res.body.total).toBe(0);
+    expect(res.body.transactions).toEqual([]);
+  });
+
+  it("counts transactions independently of the page size", async () => {
+    await db.insert(transactions).values(
+      Array.from({ length: 7 }, (_, i) => ({
+        kind: "send" as const,
+        fromPhoneHash: "aaa",
+        toPhoneHash: "bbb",
+        amount: String(i),
+        status: "success" as const,
+      })),
+    );
+    const res = await request(app).get("/transactions?limit=3");
+    expect(res.body.transactions).toHaveLength(3);
+    expect(res.body.total).toBe(7);
+  });
+});
