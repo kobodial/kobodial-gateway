@@ -307,17 +307,40 @@ test builds its own in-memory database, so CI needs no secrets, no
 funded relayer key and no testnet availability.
 
 That means the suite cannot check the real contract integration — that
-was verified separately, by hand, against the live testnet contract
-`CCPXFBZNI2HR6TPCA5QIYLQRU5W4IXCEK5Y6ANTXKCRLXCXNRILIQQJU`: registering
-a wallet, sending real balance between two wallets and watching both
-sides and the nonce update, then confirming a replayed nonce returns
-`InvalidNonce` and a wrong PIN returns `InvalidPin`. If you change
-`src/contract/`, re-run that kind of check yourself and say so in the PR.
+is verified separately, by hand, against the live testnet contract
+`CDQKYOYWBUAFZUZIAX4YDTLWYTYWPAV3AOSCUJJ2PWNRCECVV5F6XX73`:
+registering two wallets, funding one, sending real balance between them
+and watching both sides and the nonce update, then confirming a wrong PIN
+returns `InvalidPin` and a replayed nonce returns `InvalidNonce`. If you
+change `src/contract/`, re-run that kind of check yourself and say so in
+the PR.
+
+`tests/contract-args.test.ts` covers the part of that seam which _can_ be
+tested offline: the argument list of every write. A wrong argument order
+fails nowhere locally — it fails on-chain, while a user waits at a USSD
+prompt.
+
+The contract was redeployed on 2026-09-15 to carry the authorization fix
+in kobodial/kobodial-contract#11; the previous deployment
+(`CCPXFBZNI2HR6TPCA5QIYLQRU5W4IXCEK5Y6ANTXKCRLXCXNRILIQQJU`)
+must not be used.
 
 ## Out of scope for the MVP
 
-SMS receipts, multi-language menus, and agent commission tracking — all
-tracked as issues rather than half-built.
+Left out deliberately rather than half-built, and tracked with the
+reasoning written down:
+
+- [#9 SMS receipts](https://github.com/kobodial/kobodial-gateway/issues/9)
+  — a USSD session leaves the user no record to keep.
+- [#10 Multi-language menus](https://github.com/kobodial/kobodial-gateway/issues/10)
+  — English-only is a real barrier for the feature-phone users this
+  targets; the hard part is the 160-character limit, which translations
+  overflow silently.
+- [#11 Agent attribution on transactions](https://github.com/kobodial/kobodial-gateway/issues/11)
+  — commission tracking is blocked on this, not the other way round.
+
+Also open: [#4 agent storage](https://github.com/kobodial/kobodial-gateway/issues/4),
+which kobodial-dashboard currently stubs in a scratch file.
 
 ## License
 
