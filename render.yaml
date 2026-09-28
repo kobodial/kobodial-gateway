@@ -1,0 +1,47 @@
+# Render blueprint. In the Render dashboard: New -> Blueprint -> this repo.
+#
+# Secrets are marked `sync: false`, so Render prompts for them at creation
+# rather than having them sit in this file. Set them from the values you
+# already hold:
+#
+#   RELAYER_SECRET_KEY   the S... key the gateway signs contract calls with
+#   HASH_PEPPER          openssl rand -hex 32  (see docs/SECURITY.md)
+#   AFRICAS_TALKING_API_KEY
+#
+# NOTE ON STORAGE: the gateway keeps its local records in SQLite on the
+# container filesystem, and Render's free instances have no persistent disk.
+# Every restart — including waking from idle — starts with an empty database.
+#
+# Wallet balances are unaffected, because those live on-chain and are read
+# from the contract. What resets is the gateway's own record of transactions
+# and the agent directory, so the dashboard's history and agent list come back
+# empty after a sleep. That is acceptable for a testnet demo and not for
+# anything else; porting the store to Postgres is tracked as an issue.
+services:
+  - type: web
+    name: kobodial-gateway
+    runtime: docker
+    dockerfilePath: ./Dockerfile
+    plan: free
+    region: frankfurt
+    healthCheckPath: /health
+    envVars:
+      - key: RPC_URL
+        value: https://soroban-testnet.stellar.org
+      - key: NETWORK_PASSPHRASE
+        value: Test SDF Network ; September 2015
+      - key: CONTRACT_ID
+        value: CDQKYOYWBUAFZUZIAX4YDTLWYTYWPAV3AOSCUJJ2PWNRCECVV5F6XX73
+      - key: DATABASE_URL
+        value: file:/tmp/kobodial-gateway.sqlite
+      - key: LOG_LEVEL
+        value: info
+      # Prompted for at blueprint creation, never stored in the repo.
+      - key: RELAYER_SECRET_KEY
+        sync: false
+      - key: HASH_PEPPER
+        sync: false
+      - key: AFRICAS_TALKING_USERNAME
+        sync: false
+      - key: AFRICAS_TALKING_API_KEY
+        sync: false
