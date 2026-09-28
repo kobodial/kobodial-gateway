@@ -115,3 +115,29 @@ export type Transaction = typeof transactions.$inferSelect;
 export type NewTransaction = typeof transactions.$inferInsert;
 export type Agent = typeof agents.$inferSelect;
 export type NewAgent = typeof agents.$inferInsert;
+
+/**
+ * Failed-PIN accounting, keyed by phone hash.
+ *
+ * A PIN is four digits: 10,000 possibilities. Peppering the stored digest
+ * (see src/crypto/hash.ts) stops an attacker who has read the ledger from
+ * testing candidates offline, but it does nothing about testing them
+ * *online*, one USSD session at a time. Without a limit, working through
+ * the whole space is only a matter of persistence.
+ *
+ * This table is the limit. It is keyed by phone hash rather than by
+ * session, because a session is attacker-chosen — a new sessionId per
+ * guess would reset a per-session counter and defeat the point.
+ *
+ * `lockedUntil` is null whenever the wallet is not locked. Rows are kept
+ * after a successful PIN rather than deleted, so the operator can see
+ * that failures happened.
+ */
+export const pinAttempts = sqliteTable("pin_attempts", {
+  phoneHash: text("phone_hash").primaryKey(),
+  failedCount: integer("failed_count").notNull().default(0),
+  lockedUntil: integer("locked_until", { mode: "timestamp" }),
+  updatedAt: integer("updated_at", { mode: "timestamp" })
+    .notNull()
+    .default(sql`(unixepoch())`),
+});

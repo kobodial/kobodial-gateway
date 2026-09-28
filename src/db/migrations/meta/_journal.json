@@ -15,6 +15,13 @@
       "when": 1789484978059,
       "tag": "0001_furry_mister_sinister",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "6",
+      "when": 1790609374995,
+      "tag": "0002_superb_vin_gonzales",
+      "breakpoints": true
     }
   ]
 }
