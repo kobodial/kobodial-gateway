@@ -9,6 +9,11 @@ import { createApp } from "../src/app.js";
 import { createLogger } from "../src/logger.js";
 import { MockKoboDialClient } from "./mockContract.js";
 
+import { Hasher } from "../src/crypto/hash.js";
+
+const TEST_PEPPER = "k".repeat(64);
+const hasher = new Hasher(TEST_PEPPER);
+
 describe("dashboard routes", () => {
   let db: Db;
   let app: Express;
@@ -18,7 +23,7 @@ describe("dashboard routes", () => {
     db = createDb(":memory:");
     migrate(db, { migrationsFolder: "./src/db/migrations" });
     contract = new MockKoboDialClient();
-    const menu = new UssdMenuHandler(db, contract);
+    const menu = new UssdMenuHandler(db, contract, hasher);
     app = createApp({
       db,
       menu,
@@ -26,6 +31,7 @@ describe("dashboard routes", () => {
       logger: createLogger("error"),
       africasTalkingUsername: "sandbox",
       africasTalkingApiKey: "x",
+      hasher,
     });
   });
 
@@ -100,7 +106,7 @@ describe("USSD route (HTTP layer)", () => {
     db = createDb(":memory:");
     migrate(db, { migrationsFolder: "./src/db/migrations" });
     contract = new MockKoboDialClient();
-    const menu = new UssdMenuHandler(db, contract);
+    const menu = new UssdMenuHandler(db, contract, hasher);
     app = createApp({
       db,
       menu,
@@ -108,6 +114,7 @@ describe("USSD route (HTTP layer)", () => {
       logger: createLogger("error"),
       africasTalkingUsername: "sandbox",
       africasTalkingApiKey: "x",
+      hasher,
     });
   });
 
@@ -152,7 +159,7 @@ describe("dashboard list pagination", () => {
     db = createDb(":memory:");
     migrate(db, { migrationsFolder: "./src/db/migrations" });
     contract = new MockKoboDialClient();
-    const menu = new UssdMenuHandler(db, contract);
+    const menu = new UssdMenuHandler(db, contract, hasher);
     app = createApp({
       db,
       menu,
@@ -160,6 +167,7 @@ describe("dashboard list pagination", () => {
       logger: createLogger("error"),
       africasTalkingUsername: "sandbox",
       africasTalkingApiKey: "x",
+      hasher,
     });
   });
 
@@ -228,7 +236,7 @@ describe("transaction filtering", () => {
     db = createDb(":memory:");
     migrate(db, { migrationsFolder: "./src/db/migrations" });
     contract = new MockKoboDialClient();
-    const menu = new UssdMenuHandler(db, contract);
+    const menu = new UssdMenuHandler(db, contract, hasher);
     app = createApp({
       db,
       menu,
@@ -236,6 +244,7 @@ describe("transaction filtering", () => {
       logger: createLogger("error"),
       africasTalkingUsername: "sandbox",
       africasTalkingApiKey: "x",
+      hasher,
     });
     await db.insert(transactions).values([
       { kind: "register", fromPhoneHash: "aaa", status: "success" },
@@ -318,14 +327,14 @@ describe("GET /wallets/:phoneHash/balance", () => {
   let app: Express;
   let contract: MockKoboDialClient;
 
-  /** 64 hex characters, the shape hashPhoneNumber actually produces. */
+  /** 64 hex characters, the shape Hasher.phone actually produces. */
   const hash = "a".repeat(64);
 
   beforeEach(() => {
     db = createDb(":memory:");
     migrate(db, { migrationsFolder: "./src/db/migrations" });
     contract = new MockKoboDialClient();
-    const menu = new UssdMenuHandler(db, contract);
+    const menu = new UssdMenuHandler(db, contract, hasher);
     app = createApp({
       db,
       menu,
@@ -333,6 +342,7 @@ describe("GET /wallets/:phoneHash/balance", () => {
       logger: createLogger("error"),
       africasTalkingUsername: "sandbox",
       africasTalkingApiKey: "x",
+      hasher,
     });
   });
 

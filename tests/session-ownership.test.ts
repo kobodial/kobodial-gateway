@@ -4,9 +4,12 @@ import { migrate } from "drizzle-orm/better-sqlite3/migrator";
 import { UssdSessionStore } from "../src/ussd/sessionStore.js";
 import { UssdMenuHandler } from "../src/ussd/menu.js";
 import { UssdStep } from "../src/ussd/types.js";
-import { hashPhoneNumber, hashPin, toHex } from "../src/crypto/hash.js";
+import { Hasher, toHex } from "../src/crypto/hash.js";
 import { ussdSessions } from "../src/db/schema.js";
 import { MockKoboDialClient } from "./mockContract.js";
+
+const TEST_PEPPER = "k".repeat(64);
+const hasher = new Hasher(TEST_PEPPER);
 
 /**
  * The USSD callback is unauthenticated: anyone who can reach it can
@@ -17,8 +20,8 @@ import { MockKoboDialClient } from "./mockContract.js";
 describe("session ownership", () => {
   const victim = "+2348012345678";
   const attacker = "+2348099999999";
-  const victimHash = toHex(hashPhoneNumber(victim));
-  const attackerHash = toHex(hashPhoneNumber(attacker));
+  const victimHash = toHex(hasher.phone(victim));
+  const attackerHash = toHex(hasher.phone(attacker));
 
   let db: Db;
   let store: UssdSessionStore;
@@ -76,10 +79,10 @@ describe("session ownership", () => {
 
   it("end to end: a hijacked sessionId gets the welcome menu, not the victim's send flow", async () => {
     const contract = new MockKoboDialClient();
-    contract.seedWallet(hashPhoneNumber(victim), hashPin("1234"), 10_000n, 0);
-    contract.seedWallet(hashPhoneNumber(attacker), hashPin("4321"), 0n, 0);
-    contract.seedWallet(hashPhoneNumber("+2348055555555"), hashPin("1111"), 0n, 0);
-    const menu = new UssdMenuHandler(db, contract);
+    contract.seedWallet(hasher.phone(victim), hasher.pin("1234"), 10_000n, 0);
+    contract.seedWallet(hasher.phone(attacker), hasher.pin("4321"), 0n, 0);
+    contract.seedWallet(hasher.phone("+2348055555555"), hasher.pin("1111"), 0n, 0);
+    const menu = new UssdMenuHandler(db, contract, hasher);
 
     // Victim walks to the point of entering their PIN for a 5000 send.
     await menu.handle({ sessionId: "sid", phoneNumber: victim, text: "1" });
@@ -98,8 +101,8 @@ describe("session ownership", () => {
     expect(hijack.text).not.toContain("Sent");
 
     // No money moved anywhere.
-    expect(await contract.getBalance(hashPhoneNumber(victim))).toBe(10_000n);
-    expect(await contract.getBalance(hashPhoneNumber("+2348055555555"))).toBe(0n);
+    expect(await contract.getBalance(hasher.phone(victim))).toBe(10_000n);
+    expect(await contract.getBalance(hasher.phone("+2348055555555"))).toBe(0n);
 
     // And the victim can still complete their own flow.
     const done = await menu.handle({
@@ -109,6 +112,6 @@ describe("session ownership", () => {
     });
     expect(done.endSession).toBe(true);
     expect(done.text).toContain("Sent 5000");
-    expect(await contract.getBalance(hashPhoneNumber(victim))).toBe(5_000n);
+    expect(await contract.getBalance(hasher.phone(victim))).toBe(5_000n);
   });
 });

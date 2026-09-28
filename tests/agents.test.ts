@@ -9,6 +9,11 @@ import { createApp } from "../src/app.js";
 import { createLogger } from "../src/logger.js";
 import { MockKoboDialClient } from "./mockContract.js";
 
+import { Hasher } from "../src/crypto/hash.js";
+
+const TEST_PEPPER = "k".repeat(64);
+const hasher = new Hasher(TEST_PEPPER);
+
 describe("agents API", () => {
   let db: Db;
   let app: Express;
@@ -17,7 +22,7 @@ describe("agents API", () => {
     db = createDb(":memory:");
     migrate(db, { migrationsFolder: "./src/db/migrations" });
     const contract = new MockKoboDialClient();
-    const menu = new UssdMenuHandler(db, contract);
+    const menu = new UssdMenuHandler(db, contract, hasher);
     app = createApp({
       db,
       menu,
@@ -25,6 +30,7 @@ describe("agents API", () => {
       logger: createLogger("error"),
       africasTalkingUsername: "sandbox",
       africasTalkingApiKey: "x",
+      hasher,
     });
   });
 

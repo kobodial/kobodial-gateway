@@ -2,9 +2,12 @@ import { describe, it, expect, beforeEach } from "vitest";
 import { createDb, type Db } from "../src/db/client.js";
 import { migrate } from "drizzle-orm/better-sqlite3/migrator";
 import { UssdMenuHandler } from "../src/ussd/menu.js";
-import { hashPhoneNumber, hashPin, toHex } from "../src/crypto/hash.js";
+import { Hasher, toHex } from "../src/crypto/hash.js";
 import { transactions } from "../src/db/schema.js";
 import { MockKoboDialClient } from "./mockContract.js";
+
+const TEST_PEPPER = "k".repeat(64);
+const hasher = new Hasher(TEST_PEPPER);
 
 /**
  * The full "Send Money" USSD flow, end to end, against a mocked
@@ -26,9 +29,9 @@ describe("USSD: Send Money", () => {
     db = createDb(":memory:");
     migrate(db, { migrationsFolder: "./src/db/migrations" });
     contract = new MockKoboDialClient();
-    contract.seedWallet(hashPhoneNumber(senderPhone), hashPin(pin), 1000n, 0);
-    contract.seedWallet(hashPhoneNumber(recipientPhone), hashPin(pin), 0n, 0);
-    menu = new UssdMenuHandler(db, contract);
+    contract.seedWallet(hasher.phone(senderPhone), hasher.pin(pin), 1000n, 0);
+    contract.seedWallet(hasher.phone(recipientPhone), hasher.pin(pin), 0n, 0);
+    menu = new UssdMenuHandler(db, contract, hasher);
   });
 
   /** One session, driven through Africa's Talking's accumulating-text protocol exactly as it would arrive. */
@@ -70,9 +73,9 @@ describe("USSD: Send Money", () => {
 
     // The money actually moved, on the mock contract exactly as it would
     // on the real one.
-    expect(await contract.getBalance(hashPhoneNumber(senderPhone))).toBe(750n);
-    expect(await contract.getBalance(hashPhoneNumber(recipientPhone))).toBe(250n);
-    expect(await contract.getNonce(hashPhoneNumber(senderPhone))).toBe(1);
+    expect(await contract.getBalance(hasher.phone(senderPhone))).toBe(750n);
+    expect(await contract.getBalance(hasher.phone(recipientPhone))).toBe(250n);
+    expect(await contract.getNonce(hasher.phone(senderPhone))).toBe(1);
   });
 
   it("logs a successful send with hashed identifiers and no raw phone number anywhere", async () => {
@@ -84,8 +87,8 @@ describe("USSD: Send Money", () => {
     expect(row.kind).toBe("send");
     expect(row.status).toBe("success");
     expect(row.amount).toBe("100");
-    expect(row.fromPhoneHash).toBe(toHex(hashPhoneNumber(senderPhone)));
-    expect(row.toPhoneHash).toBe(toHex(hashPhoneNumber(recipientPhone)));
+    expect(row.fromPhoneHash).toBe(toHex(hasher.phone(senderPhone)));
+    expect(row.toPhoneHash).toBe(toHex(hasher.phone(recipientPhone)));
     expect(row.txHash).toBeTruthy();
 
     // The defining property: nothing in this row is a raw phone number.
@@ -102,8 +105,8 @@ describe("USSD: Send Money", () => {
     expect(final.endSession).toBe(true);
     expect(final.text).toContain("Incorrect PIN");
 
-    expect(await contract.getBalance(hashPhoneNumber(senderPhone))).toBe(1000n);
-    expect(await contract.getNonce(hashPhoneNumber(senderPhone))).toBe(0);
+    expect(await contract.getBalance(hasher.phone(senderPhone))).toBe(1000n);
+    expect(await contract.getNonce(hasher.phone(senderPhone))).toBe(0);
 
     const rows = await db.select().from(transactions);
     expect(rows).toHaveLength(1);
@@ -134,13 +137,13 @@ describe("USSD: Send Money", () => {
     const final = responses[3]!;
     expect(final.endSession).toBe(true);
     expect(final.text).toContain("Insufficient balance");
-    expect(await contract.getBalance(hashPhoneNumber(senderPhone))).toBe(1000n);
+    expect(await contract.getBalance(hasher.phone(senderPhone))).toBe(1000n);
   });
 
   it("replaying an already-consumed nonce fails cleanly on a second attempt", async () => {
     // First send succeeds and consumes nonce 0.
     await driveSession("s6", ["1", recipientPhone, "100", pin]);
-    expect(await contract.getNonce(hashPhoneNumber(senderPhone))).toBe(1);
+    expect(await contract.getNonce(hasher.phone(senderPhone))).toBe(1);
 
     // A second, brand-new session gets a FRESH nonce read at its own PIN
     // step (menu.ts calls getNonce right before send), so this exercises
@@ -152,12 +155,12 @@ describe("USSD: Send Money", () => {
     const final = responses[3]!;
     expect(final.endSession).toBe(true);
     expect(final.text).toContain("Sent 50");
-    expect(await contract.getNonce(hashPhoneNumber(senderPhone))).toBe(2);
+    expect(await contract.getNonce(hasher.phone(senderPhone))).toBe(2);
   });
 
   it("keeps two concurrent sessions from different phones fully independent", async () => {
     const otherPhone = "+2348055555555";
-    contract.seedWallet(hashPhoneNumber(otherPhone), hashPin("5555"), 300n, 0);
+    contract.seedWallet(hasher.phone(otherPhone), hasher.pin("5555"), 300n, 0);
 
     // Interleave two sessions' requests, as separate stateless HTTP
     // calls would actually arrive.
@@ -185,7 +188,7 @@ describe("USSD: Send Money", () => {
       text: `1*${recipientPhone}*200*${pin}`,
     });
     expect(finalA.endSession).toBe(true);
-    expect(await contract.getBalance(hashPhoneNumber(otherPhone))).toBe(300n); // B's wallet untouched
+    expect(await contract.getBalance(hasher.phone(otherPhone))).toBe(300n); // B's wallet untouched
   });
 });
 
@@ -203,9 +206,9 @@ describe("USSD: Send Money — amount bounds", () => {
     db = createDb(":memory:");
     migrate(db, { migrationsFolder: "./src/db/migrations" });
     contract = new MockKoboDialClient();
-    contract.seedWallet(hashPhoneNumber(senderPhone), hashPin(pin), 1000n, 0);
-    contract.seedWallet(hashPhoneNumber(recipientPhone), hashPin(pin), 0n, 0);
-    menu = new UssdMenuHandler(db, contract);
+    contract.seedWallet(hasher.phone(senderPhone), hasher.pin(pin), 1000n, 0);
+    contract.seedWallet(hasher.phone(recipientPhone), hasher.pin(pin), 0n, 0);
+    menu = new UssdMenuHandler(db, contract, hasher);
   });
 
   async function amountStep(amount: string) {
