@@ -50,6 +50,33 @@ curl https://your-host.example/health
 # {"status":"ok"}
 ```
 
+## Deploying to Render
+
+`render.yaml` is a blueprint: in the Render dashboard, **New -> Blueprint**,
+point it at this repository, and it builds the Dockerfile and wires the
+environment. Render prompts for the four secrets (`RELAYER_SECRET_KEY`,
+`HASH_PEPPER`, and the two Africa's Talking values); the rest are set in the
+blueprint. The result is a public HTTPS URL, which is what both Africa's
+Talking and the dashboard need.
+
+Two limits of the free instance type, both worth knowing before a demo:
+
+- **It sleeps after about 15 minutes idle** and takes up to a minute to wake.
+  The first USSD callback after a quiet spell can therefore time out at the
+  aggregator, which gives up long before a cold start finishes.
+- **The filesystem is not persistent.** The gateway keeps its local records in
+  SQLite on the container, so every restart — including waking from idle —
+  begins with an empty database.
+
+  Wallet balances are not affected: those live on-chain and are read from the
+  contract. What resets is the gateway's own transaction log and agent
+  directory, so the dashboard's history and agent list come back empty. Making
+  this durable means moving the store to Postgres, which is tracked as an
+  issue.
+
+For anything beyond a demo, use a paid instance with a persistent disk, or a
+host where you control storage.
+
 ## Getting a public HTTPS URL
 
 **A container host** — Fly.io, Railway, Render, a VPS behind Caddy or
