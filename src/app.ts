@@ -2,6 +2,7 @@ import express, { type Express } from "express";
 import type { Db } from "./db/client.js";
 import type { UssdMenuHandler } from "./ussd/menu.js";
 import type { KoboDialClient } from "./contract/client.js";
+import type { Hasher } from "./crypto/hash.js";
 import type { Logger } from "./logger.js";
 import { createUssdRouter } from "./routes/ussd.js";
 import { createDashboardRouter } from "./routes/dashboard.js";
@@ -11,6 +12,7 @@ export interface CreateAppOptions {
   menu: UssdMenuHandler;
   /** Also used directly by the dashboard's balance route, which reads through to the chain. */
   contract: KoboDialClient;
+  hasher: Hasher;
   logger: Logger;
   africasTalkingUsername: string;
   africasTalkingApiKey: string;
@@ -41,7 +43,7 @@ export function createApp(opts: CreateAppOptions): Express {
       logger: opts.logger,
     }),
   );
-  app.use(createDashboardRouter(opts.db, opts.contract));
+  app.use(createDashboardRouter(opts.db, opts.contract, opts.hasher));
 
   return app;
 }

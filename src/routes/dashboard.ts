@@ -5,7 +5,7 @@ import type { Db } from "../db/client.js";
 import { wallets, transactions, agents } from "../db/schema.js";
 import type { KoboDialClient } from "../contract/client.js";
 import { ContractError, ContractErrorCode } from "../contract/errors.js";
-import { fromHex, toHex, hashPhoneNumber, InvalidPhoneNumberError } from "../crypto/hash.js";
+import { fromHex, toHex, Hasher, InvalidPhoneNumberError } from "../crypto/hash.js";
 
 /**
  * A small internal read-only API for the dashboard. Every row returned
@@ -65,7 +65,7 @@ const agentUpdateSchema = z.object({
   status: z.enum(agents.status.enumValues),
 });
 
-export function createDashboardRouter(db: Db, contract: KoboDialClient): Router {
+export function createDashboardRouter(db: Db, contract: KoboDialClient, hasher: Hasher): Router {
   const router = Router();
   // The write endpoints (POST/PATCH /agents) take JSON bodies. Scoped to
   // this router rather than the whole app, matching how the USSD router
@@ -193,7 +193,7 @@ export function createDashboardRouter(db: Db, contract: KoboDialClient): Router 
 
     let phoneHash: string;
     try {
-      phoneHash = toHex(hashPhoneNumber(phone));
+      phoneHash = toHex(hasher.phone(phone));
     } catch (err) {
       // A bad phone number is the caller's mistake, not a server fault.
       if (err instanceof InvalidPhoneNumberError) {

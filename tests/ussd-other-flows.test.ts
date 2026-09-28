@@ -2,9 +2,12 @@ import { describe, it, expect, beforeEach } from "vitest";
 import { createDb, type Db } from "../src/db/client.js";
 import { migrate } from "drizzle-orm/better-sqlite3/migrator";
 import { UssdMenuHandler } from "../src/ussd/menu.js";
-import { hashPhoneNumber, hashPin, toHex } from "../src/crypto/hash.js";
+import { Hasher, toHex } from "../src/crypto/hash.js";
 import { transactions, wallets } from "../src/db/schema.js";
 import { MockKoboDialClient } from "./mockContract.js";
+
+const TEST_PEPPER = "k".repeat(64);
+const hasher = new Hasher(TEST_PEPPER);
 
 describe("USSD: Register", () => {
   const phone = "+2348012345678";
@@ -16,7 +19,7 @@ describe("USSD: Register", () => {
     db = createDb(":memory:");
     migrate(db, { migrationsFolder: "./src/db/migrations" });
     contract = new MockKoboDialClient();
-    menu = new UssdMenuHandler(db, contract);
+    menu = new UssdMenuHandler(db, contract, hasher);
   });
 
   async function drive(sessionId: string, inputs: string[]) {
@@ -34,11 +37,11 @@ describe("USSD: Register", () => {
     expect(final.endSession).toBe(true);
     expect(final.text).toContain("successful");
 
-    expect(await contract.getBalance(hashPhoneNumber(phone))).toBe(0n);
+    expect(await contract.getBalance(hasher.phone(phone))).toBe(0n);
 
     const rows = await db.select().from(wallets);
     expect(rows).toHaveLength(1);
-    expect(rows[0]!.phoneHash).toBe(toHex(hashPhoneNumber(phone)));
+    expect(rows[0]!.phoneHash).toBe(toHex(hasher.phone(phone)));
 
     const txRows = await db.select().from(transactions);
     expect(txRows).toHaveLength(1);
@@ -57,7 +60,7 @@ describe("USSD: Register", () => {
   });
 
   it("rejects registering a number that's already registered", async () => {
-    contract.seedWallet(hashPhoneNumber(phone), hashPin("1111"), 0n, 0);
+    contract.seedWallet(hasher.phone(phone), hasher.pin("1111"), 0n, 0);
     const final = await drive("r3", ["4", "1234", "1234"]);
     expect(final.endSession).toBe(true);
     expect(final.text).toContain("already registered");
@@ -80,8 +83,8 @@ describe("USSD: Check Balance", () => {
     db = createDb(":memory:");
     migrate(db, { migrationsFolder: "./src/db/migrations" });
     contract = new MockKoboDialClient();
-    contract.seedWallet(hashPhoneNumber(phone), hashPin("1234"), 4000n, 1);
-    menu = new UssdMenuHandler(db, contract);
+    contract.seedWallet(hasher.phone(phone), hasher.pin("1234"), 4000n, 1);
+    menu = new UssdMenuHandler(db, contract, hasher);
   });
 
   async function drive(sessionId: string, inputs: string[]) {
@@ -109,7 +112,7 @@ describe("USSD: Check Balance", () => {
 
   it("does not touch the wallet's nonce as a side effect of checking a balance", async () => {
     await drive("b3", ["2", "1234"]);
-    expect(await contract.getNonce(hashPhoneNumber(phone))).toBe(1); // unchanged from setup
+    expect(await contract.getNonce(hasher.phone(phone))).toBe(1); // unchanged from setup
   });
 
   it("does not log a balance check to the transaction table", async () => {
@@ -128,8 +131,8 @@ describe("USSD: Change PIN", () => {
     db = createDb(":memory:");
     migrate(db, { migrationsFolder: "./src/db/migrations" });
     contract = new MockKoboDialClient();
-    contract.seedWallet(hashPhoneNumber(phone), hashPin("1234"), 500n, 0);
-    menu = new UssdMenuHandler(db, contract);
+    contract.seedWallet(hasher.phone(phone), hasher.pin("1234"), 500n, 0);
+    menu = new UssdMenuHandler(db, contract, hasher);
   });
 
   async function drive(sessionId: string, inputs: string[]) {
@@ -158,13 +161,13 @@ describe("USSD: Change PIN", () => {
 
     // Old PIN, now stale, should fail.
     await expect(
-      contract.send(hashPhoneNumber(phone), hashPhoneNumber("+2348099999999"), 10n, hashPin("1234"), 0),
+      contract.send(hasher.phone(phone), hasher.phone("+2348099999999"), 10n, hasher.pin("1234"), 0),
     ).rejects.toThrow();
 
     // New PIN works.
-    contract.seedWallet(hashPhoneNumber("+2348099999999"), hashPin("0000"), 0n, 0);
+    contract.seedWallet(hasher.phone("+2348099999999"), hasher.pin("0000"), 0n, 0);
     await expect(
-      contract.send(hashPhoneNumber(phone), hashPhoneNumber("+2348099999999"), 10n, hashPin("5678"), 0),
+      contract.send(hasher.phone(phone), hasher.phone("+2348099999999"), 10n, hasher.pin("5678"), 0),
     ).resolves.toBeTruthy();
   });
 
@@ -191,7 +194,7 @@ describe("USSD: welcome menu and unknown steps", () => {
   it("shows the welcome menu on empty text", async () => {
     const db = createDb(":memory:");
     migrate(db, { migrationsFolder: "./src/db/migrations" });
-    const menu = new UssdMenuHandler(db, new MockKoboDialClient());
+    const menu = new UssdMenuHandler(db, new MockKoboDialClient(), hasher);
     const result = await menu.handle({ sessionId: "w1", phoneNumber: "+2348012345678", text: "" });
     expect(result.endSession).toBe(false);
     expect(result.text).toContain("1. Send Money");
@@ -203,7 +206,7 @@ describe("USSD: welcome menu and unknown steps", () => {
   it("rejects an unrecognised menu choice", async () => {
     const db = createDb(":memory:");
     migrate(db, { migrationsFolder: "./src/db/migrations" });
-    const menu = new UssdMenuHandler(db, new MockKoboDialClient());
+    const menu = new UssdMenuHandler(db, new MockKoboDialClient(), hasher);
     const result = await menu.handle({ sessionId: "w2", phoneNumber: "+2348012345678", text: "9" });
     expect(result.endSession).toBe(true);
     expect(result.text).toContain("Invalid choice");

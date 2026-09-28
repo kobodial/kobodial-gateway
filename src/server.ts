@@ -1,6 +1,7 @@
 import "dotenv/config";
 import { migrate } from "drizzle-orm/better-sqlite3/migrator";
 import { loadEnv } from "./config/env.js";
+import { Hasher } from "./crypto/hash.js";
 import { createDb } from "./db/client.js";
 import { SorobanKoboDialClient } from "./contract/client.js";
 import { UssdMenuHandler } from "./ussd/menu.js";
@@ -30,11 +31,13 @@ function main(): void {
     contractId: env.CONTRACT_ID,
   });
 
-  const menu = new UssdMenuHandler(db, contract, logger);
+  const hasher = new Hasher(env.HASH_PEPPER);
+  const menu = new UssdMenuHandler(db, contract, hasher, logger);
   const app = createApp({
     db,
     menu,
     contract,
+    hasher,
     logger,
     africasTalkingUsername: env.AFRICAS_TALKING_USERNAME,
     africasTalkingApiKey: env.AFRICAS_TALKING_API_KEY,
