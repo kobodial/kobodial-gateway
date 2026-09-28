@@ -11,6 +11,7 @@ import {
   InvalidPhoneNumberError,
   InvalidPinError,
 } from "../crypto/hash.js";
+import { PinLockout, attemptsRemaining } from "./pinLockout.js";
 import { UssdSessionStore } from "./sessionStore.js";
 import { UssdStep, type UssdSessionState } from "./types.js";
 import * as msg from "./messages.js";
@@ -61,6 +62,7 @@ type TxKind = "register" | "fund" | "send" | "cash_out" | "change_pin";
  */
 export class UssdMenuHandler {
   private readonly sessions: UssdSessionStore;
+  private readonly lockout: PinLockout;
 
   constructor(
     private readonly db: Db,
@@ -69,6 +71,7 @@ export class UssdMenuHandler {
     private readonly logger?: Logger,
   ) {
     this.sessions = new UssdSessionStore(db);
+    this.lockout = new PinLockout(db);
   }
 
   async handle(req: UssdRequest): Promise<UssdResponse> {
@@ -226,6 +229,9 @@ export class UssdMenuHandler {
     const senderHash = this.hasher.phone(callerPhoneNumber);
     const recipientHash = this.hasher.phone(recipientPhoneNumber);
 
+    const locked = await this.lockedMessage(toHex(senderHash));
+    if (locked) return { message: locked };
+
     let nonce: number;
     try {
       nonce = await this.contract.getNonce(senderHash);
@@ -245,6 +251,7 @@ export class UssdMenuHandler {
 
     try {
       const txHash = await this.contract.send(senderHash, recipientHash, amount, pinHash, nonce);
+      await this.lockout.recordSuccess(toHex(senderHash));
       await this.logTransaction({
         kind: "send",
         fromPhoneHash: toHex(senderHash),
@@ -277,7 +284,9 @@ export class UssdMenuHandler {
           status: "failed",
           errorCode: ContractErrorCode[e.code],
         });
-        return { message: msg.contractErrorMessage(e.code, context) };
+        return {
+          message: await this.notePinOutcome(toHex(senderHash), e, msg.contractErrorMessage(e.code, context)),
+        };
       }
       throw e;
     }
@@ -307,11 +316,21 @@ export class UssdMenuHandler {
     // comparison the gateway made on its own. Deliberately not logged to
     // the transactions table — see the note in menu.ts's file comment
     // and README's design notes.
+    const locked = await this.lockedMessage(toHex(callerHash));
+    if (locked) return { message: locked };
+
     try {
       await this.contract.changePin(callerHash, pinHash, pinHash);
+      await this.lockout.recordSuccess(toHex(callerHash));
     } catch (e) {
       if (e instanceof ContractError) {
-        return { message: msg.contractErrorMessage(e.code, "balance") };
+        return {
+          message: await this.notePinOutcome(
+            toHex(callerHash),
+            e,
+            msg.contractErrorMessage(e.code, "balance"),
+          ),
+        };
       }
       throw e;
     }
@@ -374,8 +393,12 @@ export class UssdMenuHandler {
     const oldPinHash = fromHex(session.data.oldPinHash!);
     const newPinHash = fromHex(session.data.newPinHash!);
 
+    const locked = await this.lockedMessage(toHex(callerHash));
+    if (locked) return { message: locked };
+
     try {
       const txHash = await this.contract.changePin(callerHash, oldPinHash, newPinHash);
+      await this.lockout.recordSuccess(toHex(callerHash));
       await this.logTransaction({
         kind: "change_pin",
         fromPhoneHash: toHex(callerHash),
@@ -391,7 +414,13 @@ export class UssdMenuHandler {
           status: "failed",
           errorCode: ContractErrorCode[e.code],
         });
-        return { message: msg.contractErrorMessage(e.code, "change_pin_old") };
+        return {
+          message: await this.notePinOutcome(
+            toHex(callerHash),
+            e,
+            msg.contractErrorMessage(e.code, "change_pin_old"),
+          ),
+        };
       }
       throw e;
     }
@@ -467,5 +496,36 @@ export class UssdMenuHandler {
     txHash?: string;
   }): Promise<void> {
     await this.db.insert(transactions).values(entry);
+  }
+
+  /**
+   * The message to return if this wallet is locked, or null to proceed.
+   *
+   * Checked before the contract call rather than after: a locked wallet
+   * should not spend a contract round trip, and more importantly should not
+   * let an attacker learn anything from how the contract responds.
+   */
+  private async lockedMessage(phoneHashHex: string): Promise<string | null> {
+    const state = await this.lockout.state(phoneHashHex);
+    return state.locked ? msg.WALLET_LOCKED(state.minutesRemaining) : null;
+  }
+
+  /**
+   * Records the outcome of a PIN-verified contract call.
+   *
+   * Returns a replacement message when a wrong PIN has consumed an attempt,
+   * so the caller learns how many remain instead of meeting the lock without
+   * warning. Any other failure leaves the count untouched — a wallet must not
+   * edge towards locking because the RPC was down.
+   */
+  private async notePinOutcome(phoneHashHex: string, error: unknown, baseMessage: string): Promise<string> {
+    if (error instanceof ContractError && error.code === ContractErrorCode.InvalidPin) {
+      const state = await this.lockout.recordFailure(phoneHashHex);
+      if (state.locked) {
+        return msg.WALLET_LOCKED(state.minutesRemaining);
+      }
+      return baseMessage + msg.PIN_ATTEMPTS_REMAINING(attemptsRemaining(state.failedCount));
+    }
+    return baseMessage;
   }
 }

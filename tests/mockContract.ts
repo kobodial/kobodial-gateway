@@ -8,6 +8,9 @@ import { ContractError, ContractErrorCode } from "../src/contract/errors.js";
  * insufficient-balance check — without ever touching a network.
  */
 export class MockKoboDialClient implements KoboDialClient {
+  /** Counts changePin submissions, so a test can assert the contract was never reached. */
+  changePinCalls = 0;
+
   private nonces = new Map<string, number>();
   private balances = new Map<string, bigint>();
   private pins = new Map<string, string>();
@@ -68,6 +71,7 @@ export class MockKoboDialClient implements KoboDialClient {
   }
 
   async changePin(phoneHash: Buffer, oldPinHash: Buffer, newPinHash: Buffer): Promise<string> {
+    this.changePinCalls += 1;
     const key = phoneHash.toString("hex");
     if (!this.registered.has(key)) throw new ContractError(ContractErrorCode.WalletNotFound);
     if (this.pins.get(key) !== oldPinHash.toString("hex"))

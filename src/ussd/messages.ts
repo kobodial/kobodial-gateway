@@ -47,6 +47,22 @@ export const REGISTER_ASK_CONFIRM = "Re-enter your PIN to confirm";
 export const REGISTER_MISMATCH = "PIN entries did not match. Please dial again to retry.";
 export const REGISTER_SUCCESS = "Registration successful! You can now send and receive money.";
 
+/**
+ * Shown when a wallet is locked after too many wrong PINs. USSD screens are
+ * short, so this says the one thing the caller can act on: how long to wait.
+ */
+export const WALLET_LOCKED = (minutes: number): string =>
+  `Too many incorrect PIN attempts. Your wallet is locked for ${minutes} ` +
+  `minute${minutes === 1 ? "" : "s"}. Please try again later.`;
+
+/**
+ * Appended to an incorrect-PIN message so the caller knows a lock is coming
+ * rather than meeting it without warning. Deliberately not shown on the last
+ * remaining attempt — see WALLET_LOCKED, which the lock itself produces.
+ */
+export const PIN_ATTEMPTS_REMAINING = (remaining: number): string =>
+  ` ${remaining} attempt${remaining === 1 ? "" : "s"} left before your wallet locks.`;
+
 export const INVALID_PIN_FORMAT = "PIN must be exactly 4 digits. Please dial again to retry.";
 export const NOT_REGISTERED = "This number is not registered. Dial again and choose Register first.";
 export const GENERIC_ERROR = "Something went wrong. Please try again later.";
