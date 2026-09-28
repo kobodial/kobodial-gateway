@@ -17,6 +17,14 @@ const envSchema = z.object({
     .string()
     .regex(/^S[A-Z2-7]{55}$/, "RELAYER_SECRET_KEY must be a valid secret strkey (S...)"),
   DATABASE_URL: z.string().min(1),
+  /**
+   * Secret key for deriving phone_hash and pin_hash. Required, with no
+   * default: the contract publishes both digests to public storage, and
+   * without this key they are enumerable (10,000 PINs; a national mobile
+   * range for phone numbers). A default here would silently reinstate
+   * exactly that. See src/crypto/hash.ts.
+   */
+  HASH_PEPPER: z.string().trim().min(64, "HASH_PEPPER must be at least 64 characters of high-entropy secret"),
   AFRICAS_TALKING_USERNAME: z.string().min(1),
   AFRICAS_TALKING_API_KEY: z.string().min(1),
   PORT: z
