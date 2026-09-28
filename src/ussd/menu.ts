@@ -5,8 +5,7 @@ import type { KoboDialClient } from "../contract/client.js";
 import { ContractError, ContractErrorCode } from "../contract/errors.js";
 import {
   assertValidPhoneNumber,
-  hashPhoneNumber,
-  hashPin,
+  Hasher,
   toHex,
   fromHex,
   InvalidPhoneNumberError,
@@ -66,6 +65,7 @@ export class UssdMenuHandler {
   constructor(
     private readonly db: Db,
     private readonly contract: KoboDialClient,
+    private readonly hasher: Hasher,
     private readonly logger?: Logger,
   ) {
     this.sessions = new UssdSessionStore(db);
@@ -79,7 +79,7 @@ export class UssdMenuHandler {
     // runs rather than partway through one.
     let callerHash: string;
     try {
-      callerHash = toHex(hashPhoneNumber(req.phoneNumber));
+      callerHash = toHex(this.hasher.phone(req.phoneNumber));
     } catch (err) {
       this.logger?.error("ussd request carried an unusable phone number", {
         sessionId: req.sessionId,
@@ -214,7 +214,7 @@ export class UssdMenuHandler {
   ): Promise<{ next?: UssdSessionState; message: string }> {
     let pinHash: Buffer;
     try {
-      pinHash = hashPin(input);
+      pinHash = this.hasher.pin(input);
     } catch (e) {
       if (e instanceof InvalidPinError) return { message: msg.INVALID_PIN_FORMAT };
       throw e;
@@ -223,8 +223,8 @@ export class UssdMenuHandler {
     const recipientPhoneNumber = session.data.recipientPhoneNumber!;
     const amountStr = session.data.amount!;
     const amount = BigInt(amountStr);
-    const senderHash = hashPhoneNumber(callerPhoneNumber);
-    const recipientHash = hashPhoneNumber(recipientPhoneNumber);
+    const senderHash = this.hasher.phone(callerPhoneNumber);
+    const recipientHash = this.hasher.phone(recipientPhoneNumber);
 
     let nonce: number;
     try {
@@ -289,13 +289,13 @@ export class UssdMenuHandler {
   ): Promise<{ next?: UssdSessionState; message: string }> {
     let pinHash: Buffer;
     try {
-      pinHash = hashPin(input);
+      pinHash = this.hasher.pin(input);
     } catch (e) {
       if (e instanceof InvalidPinError) return { message: msg.INVALID_PIN_FORMAT };
       throw e;
     }
 
-    const callerHash = hashPhoneNumber(callerPhoneNumber);
+    const callerHash = this.hasher.phone(callerPhoneNumber);
     // get_balance takes no PIN and the contract exposes no read-only PIN
     // check, so the gateway verifies the PIN the only way that keeps the
     // contract as the sole authority: submitting change_pin with the same
@@ -323,7 +323,7 @@ export class UssdMenuHandler {
   private stepChangePinEnterOld(input: string): { next?: UssdSessionState; message: string } {
     let oldPinHash: Buffer;
     try {
-      oldPinHash = hashPin(input);
+      oldPinHash = this.hasher.pin(input);
     } catch (e) {
       if (e instanceof InvalidPinError) return { message: msg.INVALID_PIN_FORMAT };
       throw e;
@@ -340,7 +340,7 @@ export class UssdMenuHandler {
   ): { next?: UssdSessionState; message: string } {
     let newPinHash: Buffer;
     try {
-      newPinHash = hashPin(input);
+      newPinHash = this.hasher.pin(input);
     } catch (e) {
       if (e instanceof InvalidPinError) return { message: msg.INVALID_PIN_FORMAT };
       throw e;
@@ -361,7 +361,7 @@ export class UssdMenuHandler {
   ): Promise<{ next?: UssdSessionState; message: string }> {
     let confirmHash: Buffer;
     try {
-      confirmHash = hashPin(input);
+      confirmHash = this.hasher.pin(input);
     } catch (e) {
       if (e instanceof InvalidPinError) return { message: msg.INVALID_PIN_FORMAT };
       throw e;
@@ -370,7 +370,7 @@ export class UssdMenuHandler {
       return { message: msg.CHANGE_PIN_MISMATCH };
     }
 
-    const callerHash = hashPhoneNumber(callerPhoneNumber);
+    const callerHash = this.hasher.phone(callerPhoneNumber);
     const oldPinHash = fromHex(session.data.oldPinHash!);
     const newPinHash = fromHex(session.data.newPinHash!);
 
@@ -400,7 +400,7 @@ export class UssdMenuHandler {
   private stepRegisterEnterPin(input: string): { next?: UssdSessionState; message: string } {
     let pinHash: Buffer;
     try {
-      pinHash = hashPin(input);
+      pinHash = this.hasher.pin(input);
     } catch (e) {
       if (e instanceof InvalidPinError) return { message: msg.INVALID_PIN_FORMAT };
       throw e;
@@ -418,7 +418,7 @@ export class UssdMenuHandler {
   ): Promise<{ next?: UssdSessionState; message: string }> {
     let confirmHash: Buffer;
     try {
-      confirmHash = hashPin(input);
+      confirmHash = this.hasher.pin(input);
     } catch (e) {
       if (e instanceof InvalidPinError) return { message: msg.INVALID_PIN_FORMAT };
       throw e;
@@ -427,7 +427,7 @@ export class UssdMenuHandler {
       return { message: msg.REGISTER_MISMATCH };
     }
 
-    const callerHash = hashPhoneNumber(callerPhoneNumber);
+    const callerHash = this.hasher.phone(callerPhoneNumber);
     const pinHash = fromHex(session.data.pinHash!);
 
     try {
