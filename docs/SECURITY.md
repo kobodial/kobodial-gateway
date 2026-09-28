@@ -9,9 +9,9 @@ the ledger, for every user, at any time.
 That makes the choice of digest a security decision rather than an
 implementation detail, because both inputs come from a small enumerable space.
 
-| Input | Space | Cost to enumerate |
-| ----- | ----- | ----------------- |
-| 4-digit PIN | 10,000 | instant |
+| Input                  | Space            | Cost to enumerate             |
+| ---------------------- | ---------------- | ----------------------------- |
+| 4-digit PIN            | 10,000           | instant                       |
 | Nigerian mobile number | tens of millions | seconds on commodity hardware |
 
 SHA-256 is designed to be fast, and runs in the billions of hashes per second
