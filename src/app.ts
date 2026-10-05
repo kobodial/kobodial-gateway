@@ -6,6 +6,7 @@ import type { Hasher } from "./crypto/hash.js";
 import type { Logger } from "./logger.js";
 import { createUssdRouter } from "./routes/ussd.js";
 import { createDashboardRouter } from "./routes/dashboard.js";
+import { dashboardRateLimit, type RateLimitOptions } from "./routes/rateLimit.js";
 
 export interface CreateAppOptions {
   db: Db;
@@ -13,6 +14,14 @@ export interface CreateAppOptions {
   /** Also used directly by the dashboard's balance route, which reads through to the chain. */
   contract: KoboDialClient;
   hasher: Hasher;
+  /**
+   * Trusted proxy hops, for identifying the caller behind a load balancer.
+   * Left unset, Express sees the proxy's address and every visitor shares
+   * one rate-limit bucket.
+   */
+  trustProxyHops?: number;
+  /** Overrides for the dashboard rate limit; tests set a small window. */
+  rateLimit?: RateLimitOptions;
   logger: Logger;
   africasTalkingUsername: string;
   africasTalkingApiKey: string;
@@ -34,6 +43,13 @@ export function createApp(opts: CreateAppOptions): Express {
   const app = express();
   app.disable("x-powered-by");
 
+  // Only as many hops as are actually in front of this service. Trusting
+  // more would let a caller forge X-Forwarded-For and get a fresh rate-limit
+  // bucket per request; trusting fewer puts every visitor in one bucket.
+  if (opts.trustProxyHops !== undefined) {
+    app.set("trust proxy", opts.trustProxyHops);
+  }
+
   app.use(
     "/ussd",
     createUssdRouter({
@@ -43,7 +59,7 @@ export function createApp(opts: CreateAppOptions): Express {
       logger: opts.logger,
     }),
   );
-  app.use(createDashboardRouter(opts.db, opts.contract, opts.hasher));
+  app.use(dashboardRateLimit(opts.rateLimit), createDashboardRouter(opts.db, opts.contract, opts.hasher));
 
   return app;
 }
