@@ -33,6 +33,23 @@ const envSchema = z.object({
     .transform((v) => Number.parseInt(v, 10))
     .pipe(z.number().int().positive().max(65535)),
   LOG_LEVEL: z.enum(["debug", "info", "warn", "error"]).default("info"),
+  /**
+   * How many reverse proxies sit in front of this service. Needed to
+   * identify the caller for rate limiting: unset, every visitor shares one
+   * bucket; set too high, a caller can forge X-Forwarded-For and get a fresh
+   * bucket per request. On Render the answer is 1.
+   */
+  TRUST_PROXY_HOPS: z
+    .string()
+    .optional()
+    .transform((v) => (v === undefined || v.trim() === "" ? undefined : Number.parseInt(v, 10)))
+    .pipe(z.number().int().min(0).max(10).optional()),
+  /** Dashboard API requests allowed per minute, per caller. */
+  RATE_LIMIT_MAX: z
+    .string()
+    .optional()
+    .transform((v) => (v === undefined || v.trim() === "" ? undefined : Number.parseInt(v, 10)))
+    .pipe(z.number().int().positive().max(100000).optional()),
 });
 
 export type Env = z.infer<typeof envSchema>;
