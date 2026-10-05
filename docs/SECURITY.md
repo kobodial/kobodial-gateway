@@ -83,3 +83,24 @@ number, and so must be run before the old scheme is switched off.
 
 Security issues can be raised as a GitHub issue on this repository. This is an
 unaudited testnet project and should not be used to hold anything of value.
+
+## Rate limiting
+
+The dashboard API is unauthenticated and `GET /wallets/:phoneHash/balance`
+reaches the contract over RPC on every call. It is limited to 120 requests a
+minute per caller (`RATE_LIMIT_MAX`), because unthrottled it lets a caller
+drive unbounded RPC traffic through the gateway — exhausting the provider's own
+rate limit and degrading the USSD path. A slow dashboard is an inconvenience;
+a failed USSD session is someone unable to reach their money.
+
+The USSD callback is deliberately **not** limited. Africa's Talking posts every
+interaction from their own infrastructure, so all real traffic shares a small
+set of addresses and would land in one bucket; throttling it would drop
+legitimate sessions at exactly the busy moments the service exists for.
+`/health` is exempt too: a 429 to the platform's health check reads as the
+service being down and gets the instance restarted.
+
+Identifying the caller behind a proxy needs `TRUST_PROXY_HOPS` set to the
+number of proxies actually in front of the service. `X-Forwarded-For` is
+caller-controlled, so trusting more hops than exist lets a caller forge a fresh
+bucket per request; trusting none puts every visitor in one bucket.

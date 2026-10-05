@@ -39,6 +39,11 @@ function main(): void {
     contract,
     hasher,
     logger,
+    // Spread rather than passed directly: with exactOptionalPropertyTypes,
+    // an explicitly-undefined optional property is not the same as an absent
+    // one, and "absent" is what means "use the default".
+    ...(env.TRUST_PROXY_HOPS !== undefined ? { trustProxyHops: env.TRUST_PROXY_HOPS } : {}),
+    ...(env.RATE_LIMIT_MAX !== undefined ? { rateLimit: { max: env.RATE_LIMIT_MAX } } : {}),
     africasTalkingUsername: env.AFRICAS_TALKING_USERNAME,
     africasTalkingApiKey: env.AFRICAS_TALKING_API_KEY,
   });
