@@ -1,5 +1,4 @@
-import { sql } from "drizzle-orm";
-import { sqliteTable, text, integer } from "drizzle-orm/sqlite-core";
+import { pgTable, text, integer, serial, timestamp } from "drizzle-orm/pg-core";
 
 /**
  * A phone number registered with this gateway, indexed by its SHA-256
@@ -14,12 +13,10 @@ import { sqliteTable, text, integer } from "drizzle-orm/sqlite-core";
  * is the only place a PIN hash is ever stored, so a database leak alone
  * can never expose it.
  */
-export const wallets = sqliteTable("wallets", {
-  id: integer("id").primaryKey({ autoIncrement: true }),
+export const wallets = pgTable("wallets", {
+  id: serial("id").primaryKey(),
   phoneHash: text("phone_hash").notNull().unique(),
-  createdAt: integer("created_at", { mode: "timestamp" })
-    .notNull()
-    .default(sql`(unixepoch())`),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
 /**
@@ -36,14 +33,12 @@ export const wallets = sqliteTable("wallets", {
  * A session row is deleted once its flow completes or is abandoned; it
  * is not a permanent record, unlike the transactions table below.
  */
-export const ussdSessions = sqliteTable("ussd_sessions", {
+export const ussdSessions = pgTable("ussd_sessions", {
   sessionId: text("session_id").primaryKey(),
   phoneHash: text("phone_hash").notNull(),
   step: text("step").notNull(),
   data: text("data").notNull().default("{}"),
-  updatedAt: integer("updated_at", { mode: "timestamp" })
-    .notNull()
-    .default(sql`(unixepoch())`),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
 /**
@@ -54,8 +49,8 @@ export const ussdSessions = sqliteTable("ussd_sessions", {
  * expose read-only through the dashboard API without becoming a PII
  * leak in its own right.
  */
-export const transactions = sqliteTable("transactions", {
-  id: integer("id").primaryKey({ autoIncrement: true }),
+export const transactions = pgTable("transactions", {
+  id: serial("id").primaryKey(),
   kind: text("kind", {
     enum: ["register", "fund", "send", "cash_out", "change_pin"],
   }).notNull(),
@@ -72,9 +67,7 @@ export const transactions = sqliteTable("transactions", {
   errorCode: text("error_code"),
   /** The Stellar transaction hash, when this attempt reached submission. */
   txHash: text("tx_hash"),
-  createdAt: integer("created_at", { mode: "timestamp" })
-    .notNull()
-    .default(sql`(unixepoch())`),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
 /**
@@ -92,8 +85,8 @@ export const transactions = sqliteTable("transactions", {
  * written today cannot be un-leaked. If an operator needs to reach an
  * agent, that belongs in a contact system, not in the ledger's index.
  */
-export const agents = sqliteTable("agents", {
-  id: integer("id").primaryKey({ autoIncrement: true }),
+export const agents = pgTable("agents", {
+  id: serial("id").primaryKey(),
   name: text("name").notNull(),
   /** SHA-256 hex of the agent's phone number, hashed off-chain like every other phone hash. Unique: an agent enrolls once. */
   phoneHash: text("phone_hash").notNull().unique(),
@@ -102,9 +95,7 @@ export const agents = sqliteTable("agents", {
   status: text("status", { enum: ["active", "suspended"] })
     .notNull()
     .default("active"),
-  createdAt: integer("created_at", { mode: "timestamp" })
-    .notNull()
-    .default(sql`(unixepoch())`),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
 export type Wallet = typeof wallets.$inferSelect;
@@ -133,11 +124,9 @@ export type NewAgent = typeof agents.$inferInsert;
  * after a successful PIN rather than deleted, so the operator can see
  * that failures happened.
  */
-export const pinAttempts = sqliteTable("pin_attempts", {
+export const pinAttempts = pgTable("pin_attempts", {
   phoneHash: text("phone_hash").primaryKey(),
   failedCount: integer("failed_count").notNull().default(0),
-  lockedUntil: integer("locked_until", { mode: "timestamp" }),
-  updatedAt: integer("updated_at", { mode: "timestamp" })
-    .notNull()
-    .default(sql`(unixepoch())`),
+  lockedUntil: timestamp("locked_until", { withTimezone: true }),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 });

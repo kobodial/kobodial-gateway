@@ -1,8 +1,8 @@
 import { describe, it, expect, beforeEach } from "vitest";
 import request from "supertest";
 import type { Express } from "express";
-import { migrate } from "drizzle-orm/better-sqlite3/migrator";
-import { createDb, type Db } from "../src/db/client.js";
+import type { Db } from "../src/db/client.js";
+import { freshDb } from "./testDb.js";
 import { createApp } from "../src/app.js";
 import { UssdMenuHandler } from "../src/ussd/menu.js";
 import { Hasher } from "../src/crypto/hash.js";
@@ -25,9 +25,8 @@ describe("dashboard rate limit", () => {
   let contract: MockKoboDialClient;
   let app: Express;
 
-  const build = (max: number) => {
-    db = createDb(":memory:");
-    migrate(db, { migrationsFolder: "./src/db/migrations" });
+  const build = async (max: number) => {
+    db = await freshDb();
     contract = new MockKoboDialClient();
     return createApp({
       db,
@@ -41,8 +40,8 @@ describe("dashboard rate limit", () => {
     });
   };
 
-  beforeEach(() => {
-    app = build(3);
+  beforeEach(async () => {
+    app = await build(3);
   });
 
   it("serves requests up to the limit, then answers 429", async () => {
@@ -84,7 +83,7 @@ describe("dashboard rate limit", () => {
     // so all real traffic shares a small set of addresses and would land in
     // one bucket. Throttling it would drop legitimate sessions at exactly the
     // busy moments the service exists for.
-    const limited = build(1);
+    const limited = await build(1);
     await request(limited).get("/wallets");
 
     for (let i = 0; i < 5; i++) {
@@ -98,7 +97,7 @@ describe("dashboard rate limit", () => {
 
   it("counts the dashboard and the callback separately", async () => {
     // Exhausting the dashboard budget must not leave the USSD path throttled.
-    const tight = build(1);
+    const tight = await build(1);
     await request(tight).get("/wallets");
     expect((await request(tight).get("/wallets")).status).toBe(429);
 

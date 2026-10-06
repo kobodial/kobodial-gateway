@@ -59,20 +59,15 @@ environment. Render prompts for the four secrets (`RELAYER_SECRET_KEY`,
 blueprint. The result is a public HTTPS URL, which is what both Africa's
 Talking and the dashboard need.
 
-Two limits of the free instance type, both worth knowing before a demo:
+One limit of the free instance type is worth knowing before a demo: **it
+sleeps after about 15 minutes idle** and takes up to a minute to wake. The
+first USSD callback after a quiet spell can therefore time out at the
+aggregator, which gives up long before a cold start finishes.
 
-- **It sleeps after about 15 minutes idle** and takes up to a minute to wake.
-  The first USSD callback after a quiet spell can therefore time out at the
-  aggregator, which gives up long before a cold start finishes.
-- **The filesystem is not persistent.** The gateway keeps its local records in
-  SQLite on the container, so every restart — including waking from idle —
-  begins with an empty database.
-
-  Wallet balances are not affected: those live on-chain and are read from the
-  contract. What resets is the gateway's own transaction log and agent
-  directory, so the dashboard's history and agent list come back empty. Making
-  this durable means moving the store to Postgres, which is tracked as an
-  issue.
+The store is Postgres, so data survives restarts — which it did not when it
+was SQLite on the container filesystem. Point `DATABASE_URL` at a provider
+whose free tier does not expire: Neon's does not, while Render's own free
+database is deleted after 30 days.
 
 For anything beyond a demo, use a paid instance with a persistent disk, or a
 host where you control storage.

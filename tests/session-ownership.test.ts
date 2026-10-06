@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach } from "vitest";
-import { createDb, type Db } from "../src/db/client.js";
-import { migrate } from "drizzle-orm/better-sqlite3/migrator";
+import type { Db } from "../src/db/client.js";
+import { freshDb } from "./testDb.js";
 import { UssdSessionStore } from "../src/ussd/sessionStore.js";
 import { UssdMenuHandler } from "../src/ussd/menu.js";
 import { UssdStep } from "../src/ussd/types.js";
@@ -26,9 +26,8 @@ describe("session ownership", () => {
   let db: Db;
   let store: UssdSessionStore;
 
-  beforeEach(() => {
-    db = createDb(":memory:");
-    migrate(db, { migrationsFolder: "./src/db/migrations" });
+  beforeEach(async () => {
+    db = await freshDb();
     store = new UssdSessionStore(db);
   });
 

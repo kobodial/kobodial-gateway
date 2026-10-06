@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach } from "vitest";
-import { migrate } from "drizzle-orm/better-sqlite3/migrator";
-import { createDb, type Db } from "../src/db/client.js";
+import type { Db } from "../src/db/client.js";
+import { freshDb } from "./testDb.js";
 import { PinLockout, MAX_FAILED_ATTEMPTS, LOCKOUT_MS, attemptsRemaining } from "../src/ussd/pinLockout.js";
 
 const PHONE = "a".repeat(64);
@@ -11,9 +11,8 @@ describe("PinLockout", () => {
   let clock: Date;
   let lockout: PinLockout;
 
-  beforeEach(() => {
-    db = createDb(":memory:");
-    migrate(db, { migrationsFolder: "./src/db/migrations" });
+  beforeEach(async () => {
+    db = await freshDb();
     clock = new Date("2026-01-01T12:00:00Z");
     lockout = new PinLockout(db, () => clock);
   });

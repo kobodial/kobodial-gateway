@@ -8,15 +8,10 @@
 #   HASH_PEPPER          openssl rand -hex 32  (see docs/SECURITY.md)
 #   AFRICAS_TALKING_API_KEY
 #
-# NOTE ON STORAGE: the gateway keeps its local records in SQLite on the
-# container filesystem, and Render's free instances have no persistent disk.
-# Every restart — including waking from idle — starts with an empty database.
-#
-# Wallet balances are unaffected, because those live on-chain and are read
-# from the contract. What resets is the gateway's own record of transactions
-# and the agent directory, so the dashboard's history and agent list come back
-# empty after a sleep. That is acceptable for a testnet demo and not for
-# anything else; porting the store to Postgres is tracked as an issue.
+# STORAGE: the store is Postgres, supplied as DATABASE_URL. It used to be
+# SQLite on the container filesystem, which Render's free instances do not
+# persist — every restart, including waking from idle, began with an empty
+# database and the dashboard's history vanished.
 services:
   - type: web
     name: kobodial-gateway
@@ -32,8 +27,11 @@ services:
         value: Test SDF Network ; September 2015
       - key: CONTRACT_ID
         value: CDQKYOYWBUAFZUZIAX4YDTLWYTYWPAV3AOSCUJJ2PWNRCECVV5F6XX73
+      # Prompted for at blueprint creation. Point it at a managed Postgres
+      # whose free tier does not expire — Neon's does not; Render's own free
+      # database is deleted after 30 days.
       - key: DATABASE_URL
-        value: file:/tmp/kobodial-gateway.sqlite
+        sync: false
       - key: LOG_LEVEL
         value: info
       # Prompted for at blueprint creation, never stored in the repo.

@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach } from "vitest";
-import { createDb, type Db } from "../src/db/client.js";
-import { migrate } from "drizzle-orm/better-sqlite3/migrator";
+import type { Db } from "../src/db/client.js";
+import { freshDb } from "./testDb.js";
 import { UssdMenuHandler } from "../src/ussd/menu.js";
 import { Hasher } from "../src/crypto/hash.js";
 import { MockKoboDialClient } from "./mockContract.js";
@@ -28,8 +28,7 @@ describe("USSD: wrong-PIN lockout", () => {
   let menu: UssdMenuHandler;
 
   beforeEach(async () => {
-    db = createDb(":memory:");
-    migrate(db, { migrationsFolder: "./src/db/migrations" });
+    db = await freshDb();
     contract = new MockKoboDialClient();
     menu = new UssdMenuHandler(db, contract, hasher);
 

@@ -1,7 +1,25 @@
 services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: kobodial
+      POSTGRES_PASSWORD: kobodial
+      POSTGRES_DB: kobodial
+    volumes:
+      - gateway-pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U kobodial"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
+
   gateway:
     build: .
     image: kobodial-gateway:local
+    depends_on:
+      postgres:
+        condition: service_healthy
     ports:
       - "${PORT:-3000}:3000"
     environment:
@@ -9,15 +27,17 @@ services:
       CONTRACT_ID: ${CONTRACT_ID:?CONTRACT_ID is required}
       NETWORK_PASSPHRASE: ${NETWORK_PASSPHRASE:-Test SDF Network ; September 2015}
       RELAYER_SECRET_KEY: ${RELAYER_SECRET_KEY:?RELAYER_SECRET_KEY is required}
+      # Required: without it the stored phone and PIN digests are
+      # enumerable from public ledger data. See docs/SECURITY.md.
+      HASH_PEPPER: ${HASH_PEPPER:?HASH_PEPPER is required - generate with openssl rand -hex 32}
       AFRICAS_TALKING_USERNAME: ${AFRICAS_TALKING_USERNAME:-sandbox}
       AFRICAS_TALKING_API_KEY: ${AFRICAS_TALKING_API_KEY:?AFRICAS_TALKING_API_KEY is required}
       LOG_LEVEL: ${LOG_LEVEL:-info}
-      # Inside the container the database lives on the mounted volume,
-      # not alongside the code.
-      DATABASE_URL: file:/data/kobodial-gateway.sqlite
-    volumes:
-      - gateway-data:/data
+      # Postgres in the compose network. The store was SQLite on a mounted
+      # volume, which survived a restart here but not on a host without a
+      # persistent disk — there, every restart began with an empty database.
+      DATABASE_URL: postgres://kobodial:kobodial@postgres:5432/kobodial
     restart: unless-stopped
 
 volumes:
-  gateway-data:
+  gateway-pgdata:

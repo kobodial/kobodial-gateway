@@ -19,6 +19,7 @@
     "typecheck": "tsc --noEmit -p tsconfig.json && tsc --noEmit -p tsconfig.test.json"
   },
   "dependencies": {
+    "@electric-sql/pglite": "^0.5.8",
     "@stellar/stellar-sdk": "17.0.1",
     "africastalking": "0.8.3",
     "better-sqlite3": "13.0.3",
@@ -26,6 +27,7 @@
     "drizzle-orm": "0.45.2",
     "express": "5.2.1",
     "express-rate-limit": "^8.7.0",
+    "pg": "^8.23.1",
     "zod": "4.6.5"
   },
   "devDependencies": {
@@ -34,6 +36,7 @@
     "@types/better-sqlite3": "9.6.0",
     "@types/express": "5.0.6",
     "@types/node": "26.5.1",
+    "@types/pg": "^8.23.1",
     "@types/supertest": "7.2.1",
     "@typescript-eslint/eslint-plugin": "8.70.0",
     "@typescript-eslint/parser": "8.70.0",
