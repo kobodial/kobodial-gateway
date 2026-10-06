@@ -4,9 +4,12 @@
 # rather than having them sit in this file. Set them from the values you
 # already hold:
 #
+#   DATABASE_URL         a managed Postgres URL (Neon's free tier does not expire)
 #   RELAYER_SECRET_KEY   the S... key the gateway signs contract calls with
 #   HASH_PEPPER          openssl rand -hex 32  (see docs/SECURITY.md)
-#   AFRICAS_TALKING_API_KEY
+#
+# AFRICAS_TALKING_API_KEY is optional - the inbound USSD path never
+# authenticates with it.
 #
 # STORAGE: the store is Postgres, supplied as DATABASE_URL. It used to be
 # SQLite on the container filesystem, which Render's free instances do not
@@ -39,7 +42,11 @@ services:
         sync: false
       - key: HASH_PEPPER
         sync: false
+      # Not a secret, and "sandbox" is what the simulator uses.
       - key: AFRICAS_TALKING_USERNAME
-        sync: false
+        value: sandbox
+      # Optional: the USSD callback never authenticates with it, because the
+      # SDK is used only to parse inbound requests. Needed once outbound
+      # messaging exists.
       - key: AFRICAS_TALKING_API_KEY
         sync: false
