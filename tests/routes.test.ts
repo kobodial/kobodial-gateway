@@ -1,8 +1,8 @@
 import { describe, it, expect, beforeEach } from "vitest";
 import request from "supertest";
 import type { Express } from "express";
-import { createDb, type Db } from "../src/db/client.js";
-import { migrate } from "drizzle-orm/better-sqlite3/migrator";
+import type { Db } from "../src/db/client.js";
+import { freshDb } from "./testDb.js";
 import { wallets, transactions } from "../src/db/schema.js";
 import { UssdMenuHandler } from "../src/ussd/menu.js";
 import { createApp } from "../src/app.js";
@@ -19,9 +19,8 @@ describe("dashboard routes", () => {
   let app: Express;
   let contract: MockKoboDialClient;
 
-  beforeEach(() => {
-    db = createDb(":memory:");
-    migrate(db, { migrationsFolder: "./src/db/migrations" });
+  beforeEach(async () => {
+    db = await freshDb();
     contract = new MockKoboDialClient();
     const menu = new UssdMenuHandler(db, contract, hasher);
     app = createApp({
@@ -102,9 +101,8 @@ describe("USSD route (HTTP layer)", () => {
   let db: Db;
   let contract: MockKoboDialClient;
 
-  beforeEach(() => {
-    db = createDb(":memory:");
-    migrate(db, { migrationsFolder: "./src/db/migrations" });
+  beforeEach(async () => {
+    db = await freshDb();
     contract = new MockKoboDialClient();
     const menu = new UssdMenuHandler(db, contract, hasher);
     app = createApp({
@@ -155,9 +153,8 @@ describe("dashboard list pagination", () => {
   let app: Express;
   let contract: MockKoboDialClient;
 
-  beforeEach(() => {
-    db = createDb(":memory:");
-    migrate(db, { migrationsFolder: "./src/db/migrations" });
+  beforeEach(async () => {
+    db = await freshDb();
     contract = new MockKoboDialClient();
     const menu = new UssdMenuHandler(db, contract, hasher);
     app = createApp({
@@ -233,8 +230,7 @@ describe("transaction filtering", () => {
   let contract: MockKoboDialClient;
 
   beforeEach(async () => {
-    db = createDb(":memory:");
-    migrate(db, { migrationsFolder: "./src/db/migrations" });
+    db = await freshDb();
     contract = new MockKoboDialClient();
     const menu = new UssdMenuHandler(db, contract, hasher);
     app = createApp({
@@ -330,9 +326,8 @@ describe("GET /wallets/:phoneHash/balance", () => {
   /** 64 hex characters, the shape Hasher.phone actually produces. */
   const hash = "a".repeat(64);
 
-  beforeEach(() => {
-    db = createDb(":memory:");
-    migrate(db, { migrationsFolder: "./src/db/migrations" });
+  beforeEach(async () => {
+    db = await freshDb();
     contract = new MockKoboDialClient();
     const menu = new UssdMenuHandler(db, contract, hasher);
     app = createApp({

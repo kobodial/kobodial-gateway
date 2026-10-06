@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach } from "vitest";
-import { createDb, type Db } from "../src/db/client.js";
-import { migrate } from "drizzle-orm/better-sqlite3/migrator";
+import type { Db } from "../src/db/client.js";
+import { freshDb } from "./testDb.js";
 import { UssdMenuHandler } from "../src/ussd/menu.js";
 import { Hasher, toHex } from "../src/crypto/hash.js";
 import { transactions, wallets } from "../src/db/schema.js";
@@ -15,9 +15,8 @@ describe("USSD: Register", () => {
   let contract: MockKoboDialClient;
   let menu: UssdMenuHandler;
 
-  beforeEach(() => {
-    db = createDb(":memory:");
-    migrate(db, { migrationsFolder: "./src/db/migrations" });
+  beforeEach(async () => {
+    db = await freshDb();
     contract = new MockKoboDialClient();
     menu = new UssdMenuHandler(db, contract, hasher);
   });
@@ -79,9 +78,8 @@ describe("USSD: Check Balance", () => {
   let contract: MockKoboDialClient;
   let menu: UssdMenuHandler;
 
-  beforeEach(() => {
-    db = createDb(":memory:");
-    migrate(db, { migrationsFolder: "./src/db/migrations" });
+  beforeEach(async () => {
+    db = await freshDb();
     contract = new MockKoboDialClient();
     contract.seedWallet(hasher.phone(phone), hasher.pin("1234"), 4000n, 1);
     menu = new UssdMenuHandler(db, contract, hasher);
@@ -127,9 +125,8 @@ describe("USSD: Change PIN", () => {
   let contract: MockKoboDialClient;
   let menu: UssdMenuHandler;
 
-  beforeEach(() => {
-    db = createDb(":memory:");
-    migrate(db, { migrationsFolder: "./src/db/migrations" });
+  beforeEach(async () => {
+    db = await freshDb();
     contract = new MockKoboDialClient();
     contract.seedWallet(hasher.phone(phone), hasher.pin("1234"), 500n, 0);
     menu = new UssdMenuHandler(db, contract, hasher);
@@ -192,8 +189,7 @@ describe("USSD: Change PIN", () => {
 
 describe("USSD: welcome menu and unknown steps", () => {
   it("shows the welcome menu on empty text", async () => {
-    const db = createDb(":memory:");
-    migrate(db, { migrationsFolder: "./src/db/migrations" });
+    const db = await freshDb();
     const menu = new UssdMenuHandler(db, new MockKoboDialClient(), hasher);
     const result = await menu.handle({ sessionId: "w1", phoneNumber: "+2348012345678", text: "" });
     expect(result.endSession).toBe(false);
@@ -204,8 +200,7 @@ describe("USSD: welcome menu and unknown steps", () => {
   });
 
   it("rejects an unrecognised menu choice", async () => {
-    const db = createDb(":memory:");
-    migrate(db, { migrationsFolder: "./src/db/migrations" });
+    const db = await freshDb();
     const menu = new UssdMenuHandler(db, new MockKoboDialClient(), hasher);
     const result = await menu.handle({ sessionId: "w2", phoneNumber: "+2348012345678", text: "9" });
     expect(result.endSession).toBe(true);

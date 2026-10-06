@@ -1,8 +1,8 @@
 import { describe, it, expect, beforeEach } from "vitest";
 import request from "supertest";
 import type { Express } from "express";
-import { createDb, type Db } from "../src/db/client.js";
-import { migrate } from "drizzle-orm/better-sqlite3/migrator";
+import type { Db } from "../src/db/client.js";
+import { freshDb } from "./testDb.js";
 import { agents } from "../src/db/schema.js";
 import { UssdMenuHandler } from "../src/ussd/menu.js";
 import { createApp } from "../src/app.js";
@@ -18,9 +18,8 @@ describe("agents API", () => {
   let db: Db;
   let app: Express;
 
-  beforeEach(() => {
-    db = createDb(":memory:");
-    migrate(db, { migrationsFolder: "./src/db/migrations" });
+  beforeEach(async () => {
+    db = await freshDb();
     const contract = new MockKoboDialClient();
     const menu = new UssdMenuHandler(db, contract, hasher);
     app = createApp({

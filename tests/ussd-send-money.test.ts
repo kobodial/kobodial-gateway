@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach } from "vitest";
-import { createDb, type Db } from "../src/db/client.js";
-import { migrate } from "drizzle-orm/better-sqlite3/migrator";
+import type { Db } from "../src/db/client.js";
+import { freshDb } from "./testDb.js";
 import { UssdMenuHandler } from "../src/ussd/menu.js";
 import { Hasher, toHex } from "../src/crypto/hash.js";
 import { transactions } from "../src/db/schema.js";
@@ -26,8 +26,7 @@ describe("USSD: Send Money", () => {
   let menu: UssdMenuHandler;
 
   beforeEach(async () => {
-    db = createDb(":memory:");
-    migrate(db, { migrationsFolder: "./src/db/migrations" });
+    db = await freshDb();
     contract = new MockKoboDialClient();
     contract.seedWallet(hasher.phone(senderPhone), hasher.pin(pin), 1000n, 0);
     contract.seedWallet(hasher.phone(recipientPhone), hasher.pin(pin), 0n, 0);
@@ -202,9 +201,8 @@ describe("USSD: Send Money — amount bounds", () => {
   let contract: MockKoboDialClient;
   let menu: UssdMenuHandler;
 
-  beforeEach(() => {
-    db = createDb(":memory:");
-    migrate(db, { migrationsFolder: "./src/db/migrations" });
+  beforeEach(async () => {
+    db = await freshDb();
     contract = new MockKoboDialClient();
     contract.seedWallet(hasher.phone(senderPhone), hasher.pin(pin), 1000n, 0);
     contract.seedWallet(hasher.phone(recipientPhone), hasher.pin(pin), 0n, 0);
