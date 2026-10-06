@@ -9,6 +9,12 @@ import { z } from "zod";
  * session tries to send money, at which point the user is mid-session on
  * a feature phone with no way to see a stack trace.
  */
+/**
+ * Stands in for an Africa's Talking API key that is not set. Named so it is
+ * recognisable in a log line rather than looking like a real credential.
+ */
+export const PLACEHOLDER_API_KEY = "unset-no-outbound-messaging";
+
 const envSchema = z.object({
   RPC_URL: z.string().url(),
   CONTRACT_ID: z.string().regex(/^C[A-Z2-7]{55}$/, "CONTRACT_ID must be a valid contract strkey (C...)"),
@@ -25,8 +31,22 @@ const envSchema = z.object({
    * exactly that. See src/crypto/hash.ts.
    */
   HASH_PEPPER: z.string().trim().min(64, "HASH_PEPPER must be at least 64 characters of high-entropy secret"),
-  AFRICAS_TALKING_USERNAME: z.string().min(1),
-  AFRICAS_TALKING_API_KEY: z.string().min(1),
+  /**
+   * Africa's Talking credentials.
+   *
+   * The USSD path never authenticates with them. The SDK client is built only
+   * for its USSD() middleware, which parses the inbound callback body and
+   * formats the plain-text reply — no outbound API call is made, so the key is
+   * never checked against anything. The SDK does reject an empty string, which
+   * is why there is a placeholder rather than nothing.
+   *
+   * Requiring a real key to boot therefore blocked deployment on a credential
+   * the running service does not use. They become genuinely required when
+   * outbound messaging exists (#9); until then the placeholder is honest about
+   * what is configured, and the server warns when it is in use.
+   */
+  AFRICAS_TALKING_USERNAME: z.string().min(1).default("sandbox"),
+  AFRICAS_TALKING_API_KEY: z.string().min(1).default(PLACEHOLDER_API_KEY),
   PORT: z
     .string()
     .default("3000")
