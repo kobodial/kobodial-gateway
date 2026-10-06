@@ -1,6 +1,6 @@
 import "dotenv/config";
 import { migrateDb } from "./db/migrator.js";
-import { loadEnv } from "./config/env.js";
+import { loadEnv, PLACEHOLDER_API_KEY } from "./config/env.js";
 import { Hasher } from "./crypto/hash.js";
 import { createDb } from "./db/client.js";
 import { SorobanKoboDialClient } from "./contract/client.js";
@@ -11,6 +11,13 @@ import { createLogger } from "./logger.js";
 async function main(): Promise<void> {
   const env = loadEnv();
   const logger = createLogger(env.LOG_LEVEL);
+
+  if (env.AFRICAS_TALKING_API_KEY === PLACEHOLDER_API_KEY) {
+    // Not fatal: the USSD callback works without it, because the SDK is used
+    // only to parse inbound requests. Said out loud so nobody concludes that
+    // outbound messaging is configured when it is not.
+    logger.warn("AFRICAS_TALKING_API_KEY is not set - inbound USSD works, outbound messaging would not");
+  }
 
   const db = createDb(env.DATABASE_URL);
   // Idempotent — safe on every restart. A multi-instance deployment
