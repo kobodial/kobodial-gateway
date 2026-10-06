@@ -4,10 +4,12 @@ export default defineConfig({
   test: {
     include: ["tests/**/*.test.ts"],
     testTimeout: 10_000,
-    // The first test in each worker pays for booting PGlite — Postgres
-    // compiled to WebAssembly — which takes 6 to 8 seconds. Subsequent
-    // tests reuse that instance and truncate between them (tests/testDb.ts),
-    // so only the first hook is slow. 10s was not enough for it.
+    // Insurance for slow hardware, not a workaround for an inherent cost.
+    // The first test in each worker boots PGlite — Postgres compiled to
+    // WebAssembly — which CI does in well under a second but which took 6 to
+    // 8 seconds on the machine this was written on, overrunning the 10s
+    // default. Subsequent tests reuse that instance and truncate between
+    // them (tests/testDb.ts), so only the first hook is ever slow.
     hookTimeout: 40_000,
     // Workers are reused across files, which matters more now than it did:
     // each worker boots one PGlite instance and every test in it truncates

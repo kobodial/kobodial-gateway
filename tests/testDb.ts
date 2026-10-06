@@ -6,9 +6,10 @@ import { migrateDb } from "../src/db/migrator.js";
  * A clean database for one test, reusing a single Postgres instance.
  *
  * PGlite is Postgres compiled to WebAssembly, which gives the suite real
- * Postgres semantics with no service to run — but booting one costs **6 to 8
- * seconds**. A fresh instance per test, which is what the SQLite version did
- * for free, would have turned a five-second suite into several minutes.
+ * Postgres semantics with no service to run — but booting one is not free: CI
+ * does it in well under a second, while the machine this was written on took
+ * 6 to 8 seconds. A fresh instance per test, which the SQLite version got for
+ * free, is therefore fine on fast hardware and ruinous on slow.
  *
  * So the instance is created once per worker and truncated between tests
  * instead. `RESTART IDENTITY` matters: several tests assert on generated ids
