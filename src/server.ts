@@ -1,5 +1,5 @@
 import "dotenv/config";
-import { migrate } from "drizzle-orm/better-sqlite3/migrator";
+import { migrateDb } from "./db/migrator.js";
 import { loadEnv } from "./config/env.js";
 import { Hasher } from "./crypto/hash.js";
 import { createDb } from "./db/client.js";
@@ -8,7 +8,7 @@ import { UssdMenuHandler } from "./ussd/menu.js";
 import { createApp } from "./app.js";
 import { createLogger } from "./logger.js";
 
-function main(): void {
+async function main(): Promise<void> {
   const env = loadEnv();
   const logger = createLogger(env.LOG_LEVEL);
 
@@ -18,7 +18,7 @@ function main(): void {
   // instances rather than relying on every instance racing to migrate
   // on boot; see the relayer sequence-number note in SECURITY.md for
   // the same shape of caveat on the write side.
-  migrate(db, { migrationsFolder: "./src/db/migrations" });
+  await migrateDb(db);
 
   const contract = new SorobanKoboDialClient({
     rpcUrl: env.RPC_URL,
@@ -53,4 +53,7 @@ function main(): void {
   });
 }
 
-main();
+main().catch((err: unknown) => {
+  console.error(err);
+  process.exitCode = 1;
+});
