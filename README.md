@@ -7,6 +7,23 @@ no wallet app, no private key in the user's hands.
 This service is the bridge between a USSD session and the
 [KoboDial contract](https://github.com/kobodial/kobodial-contract).
 
+## Try it
+
+|                                |                                                                                                                                                                                   |
+| ------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Dashboard (live)**           | https://kobodial-dashboard.vercel.app                                                                                                                                             |
+| **Gateway API (live)**         | https://kobodial-gateway-i05s.onrender.com/health                                                                                                                                 |
+| **Contract (Stellar testnet)** | [`CDQKYOYW…XX73`](https://stellar.expert/explorer/testnet/contract/CDQKYOYWBUAFZUZIAX4YDTLWYTYWPAV3AOSCUJJ2PWNRCECVV5F6XX73)                                                      |
+| **The three repositories**     | [contract](https://github.com/kobodial/kobodial-contract) · [gateway](https://github.com/kobodial/kobodial-gateway) · [dashboard](https://github.com/kobodial/kobodial-dashboard) |
+
+The gateway runs on a free instance that sleeps after about fifteen minutes
+idle and takes up to a minute to wake, so the first request after a quiet
+spell is slow. The dashboard reports that as "waking up" rather than as a
+fault — reload and it answers.
+
+**[DEMO.md](DEMO.md) walks a full USSD session against the live deployment**,
+with real transaction hashes, and runs the PIN lockout for real.
+
 ## Why a gateway exists at all
 
 A wallet normally works because its owner holds a private key and signs
